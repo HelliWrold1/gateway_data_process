@@ -7,6 +7,7 @@ static MQTTConnector_t *p_MQTTConnector;
 
 void connectorInit(MQTTConnector_t *initMQTTConnector)
 {
+    p_MQTTConnector = initMQTTConnector;
     p_MQTTConnector->client = 0;
     p_MQTTConnector->connInfo.brokerUrl = "localhost:1883";
     p_MQTTConnector->connInfo.clientId = "mqttConnector";
@@ -23,10 +24,12 @@ void connectorInit(MQTTConnector_t *initMQTTConnector)
 
 }
 
-int connectorStart(MQTTConnector_t *initMQTTConnector)
+int connectorStart()
 {
+    // 只有一个连接器/客户端
+    if (p_MQTTConnector->client != 0)
+        return MQTT_CONNECTOR_ONLY_ON_CONNECTOR;
     int rc;
-    p_MQTTConnector = initMQTTConnector;
     MQTTAsync_connectOptions conn_opts = MQTTAsync_connectOptions_initializer;
     conn_opts.automaticReconnect = 1; // 开启自动重连
     conn_opts.minRetryInterval = 1; // 1s，最小的重连间隔，每次失败间隔时间都会加倍
@@ -64,6 +67,8 @@ int connectorStart(MQTTConnector_t *initMQTTConnector)
         MQTTAsync_setMessageArrivedCallback(p_MQTTConnector->client,NULL,p_MQTTConnector->msgArrivedCallback);
     else
         MQTTAsync_setMessageArrivedCallback(p_MQTTConnector->client,NULL,defaultMsgArrived);
+
+    // 连接Broker
     if( (rc = MQTTAsync_connect(p_MQTTConnector->client, &conn_opts)) != MQTTASYNC_SUCCESS )
     {
         printf("First connection failed, error code:%d\n", rc);

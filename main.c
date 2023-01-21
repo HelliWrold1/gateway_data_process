@@ -15,10 +15,8 @@ int main() {
 //    mqttConn.connInfo.clientId = "mqttConnector";
 //    mqttConn.connInfo.userName = "test";
 //    mqttConn.connInfo.userPwd = "testPwd";
+    mqttConn.eachConnectedCallback = eachConnectedCallback;
     connectorStart(&mqttConn);
-    printf("%d\n",mqttConn.client);
-    connectorStart(&mqttConn);
-    printf("%d\n",mqttConn.client);
 
     while(1)
     {
@@ -28,6 +26,7 @@ int main() {
     return 0;
 }
 
+// 为MQTTAsync提供每次连接成功后的回调函数
 void eachConnectedCallback(void* context, char* cause)
 {
     connectorSubscribe("test",1);

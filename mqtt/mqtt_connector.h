@@ -15,7 +15,8 @@ typedef enum {
     MQTT_CONNECTOR_SUCCESS,
     MQTT_CONNECTOR_FAILURE,
     MQTT_CONNECTOR_CREATE_FAILURE,
-    MQTT_CONNECTOR_CONNECT_FAILURE
+    MQTT_CONNECTOR_CONNECT_FAILURE,
+    MQTT_CONNECTOR_ONLY_ON_CONNECTOR
 }MQTT_CONNECTOR_STATUS;
 
 typedef struct sMQTTConnector{
@@ -54,12 +55,12 @@ typedef struct sMQTTConnector{
  * @return
  */
 void connectorInit(MQTTConnector_t *initMQTTConnector);
+
 /**
- * @brief 初始化连接器
- * @param initMQTTConnector 指向一个MQTT连接器结构体 @ref MQTTConnector_t
+ * @brief 启动连接器
  * @return
  */
-int connectorStart(MQTTConnector_t *initMQTTConnector);
+int connectorStart();
 
 /**
  * @brief 指定服务质量，订阅主题
