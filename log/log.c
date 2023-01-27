@@ -2,6 +2,7 @@
  * Created by HelliWrold1 on 2023/1/22 1:08.
  */
 
+#include <string.h>
 #include "log.h"
 
 char* logLevelGet(const int level)
@@ -30,11 +31,12 @@ void gw_log(const int level, const char* date, const char* time, const char* fil
 
     va_start(arg, fmt);
 #endif
+    memset(buf,0,sizeof (buf));
     vsnprintf(buf, sizeof(buf), fmt, arg);
     va_end(arg);
 
     if (level >= LOG_LEVEL)
-        printf("[%s]\t[%s %s][%s: %s:%d]\t%s\n",logLevelGet(level), date, time,
+        printf("[%s]\t[%s %s][%s: %s:%d]\t%s\n", logLevelGet(level), date, time,
                file, fun, line, buf);
 
 #ifdef WRITE_LOG_FILE // 需要写日志文件

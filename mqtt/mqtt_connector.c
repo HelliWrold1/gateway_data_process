@@ -158,9 +158,10 @@ void defaultOnFailureSubscribe(void* context, MQTTAsync_failureData* response)
 
 int defaultMsgArrived(void* context, char* topicName, int topicLen, MQTTAsync_message *message) //接收数据回调
 {
-    GW_LOG(LOG_INFO,"Message arrived:\n");
-    GW_LOG(LOG_INFO,"topic: %s\tpayload: '%s'\t payloadlength:%d\n\n", topicName, (char *) message->payload,
+    GW_LOG(LOG_DEBUG,"Message arrived:\n");
+    GW_LOG(LOG_DEBUG,"topic: %s\tpayload: '%s'\t payloadlength:%d\n\n", topicName, (char *) message->payload,
            message->payloadlen);
+    return 1;
 }
 
 void defaultDelivered(void* context, MQTTAsync_token token)
