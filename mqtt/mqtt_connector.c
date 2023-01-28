@@ -8,20 +8,11 @@ static MQTTConnector_t *p_MQTTConnector;
 void connectorInit(MQTTConnector_t *initMQTTConnector)
 {
     p_MQTTConnector = initMQTTConnector;
-    p_MQTTConnector->client = 0;
+    memset(p_MQTTConnector, 0, sizeof(MQTTConnector_t));
     p_MQTTConnector->connInfo.brokerUrl = "localhost:1883";
     p_MQTTConnector->connInfo.clientId = "mqttConnector";
     p_MQTTConnector->connInfo.userName = "HelliWrold1";
     p_MQTTConnector->connInfo.userPwd = "HelloWorld!";
-    p_MQTTConnector->firstSuccessConnectedCallback = NULL;
-    p_MQTTConnector->eachConnectedCallback = NULL;
-    p_MQTTConnector->connectFailureCallback = NULL;
-    p_MQTTConnector->connLostCallback = NULL;
-    p_MQTTConnector->successSubscribedCallback = NULL;
-    p_MQTTConnector->subscribedFailureCallback = NULL;
-    p_MQTTConnector->msgArrivedCallback = NULL;
-    p_MQTTConnector->pubDeliveredCallback = NULL;
-
 }
 
 int connectorStart()
@@ -161,6 +152,9 @@ int defaultMsgArrived(void* context, char* topicName, int topicLen, MQTTAsync_me
     GW_LOG(LOG_DEBUG,"Message arrived:\n");
     GW_LOG(LOG_DEBUG,"topic: %s\tpayload: '%s'\t payloadlength:%d\n\n", topicName, (char *) message->payload,
            message->payloadlen);
+    MQTTAsync_freeMessage(&message);
+    MQTTAsync_free(topicName);
+
     return 1;
 }
 

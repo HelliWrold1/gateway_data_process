@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include "mqtt/mqtt_connector.h"
 #include "json/json_str_convertor.h"
+#include "sql/sqlite_connector.h"
 #include <string.h>
 #include <malloc.h>
 
@@ -29,6 +30,14 @@ int main() {
     mqttConn.msgArrivedCallback = msgArrivedCallback;
     connectorStart(&mqttConn);
 
+    connectDatabase(); // 连接sqlite3数据库
+    SQLite3QueryResult_t sqLite3QueryResult;
+    initQueryResult(&sqLite3QueryResult);
+    queryTable("67678D5E",&sqLite3QueryResult);
+    GW_LOG(LOG_DEBUG, "%d", sqLite3QueryResult.id);
+    GW_LOG(LOG_DEBUG, "%d", sqLite3QueryResult.fcnt);
+    GW_LOG(LOG_DEBUG, sqLite3QueryResult.json);
+
     while(1)
     {
 //        connectorPublish("test","hello,hi,hey",1);
@@ -48,8 +57,8 @@ void eachConnectedCallback(void* context, char* cause)
 int msgArrivedCallback(void* context, char* topicName, int topicLen, MQTTAsync_message *message) //接收数据回调
 {
     char* payload = (char*)message->payload;
-    GW_LOG(LOG_INFO,"Message arrived:\n");
-    GW_LOG(LOG_INFO,"topic: %s\tpayload: '%s'\t payloadlength:%d\n\n", topicName, (char *) message->payload,
+    GW_LOG(LOG_DEBUG,"Message arrived:\n");
+    GW_LOG(LOG_DEBUG,"topic: %s\tpayload: '%s'\t payloadlength:%d\n\n", topicName, (char *) message->payload,
            message->payloadlen);
     if (strstr(topicName,"uplinkFromNode/B827EBFFFE2114B5"))
     {
@@ -62,8 +71,8 @@ int msgArrivedCallback(void* context, char* topicName, int topicLen, MQTTAsync_m
         else
         {
             GetcJsonParsedDataResult(payload, json,cpdr);
-            GW_LOG(LOG_DEBUG,"%s",cpdr->app);
-            GW_LOG(LOG_DEBUG,"%d",cpdr->data1);
+            createTable(cpdr->devaddr);
+            insertTable(cpdr->devaddr,payload);
         }
         free(cpdr);
         cJSON_Delete(json);
