@@ -37,6 +37,10 @@ int main() {
     GW_LOG(LOG_DEBUG, "%d", sqLite3QueryResult.id);
     GW_LOG(LOG_DEBUG, "%d", sqLite3QueryResult.fcnt);
     GW_LOG(LOG_DEBUG, sqLite3QueryResult.json);
+    if (SQLITE3_CONNECTOR_SUCCESS == replaceTable("67678D5E", &sqLite3QueryResult))
+    {
+        GW_LOG(LOG_DEBUG,"Replaced");
+    }
 
     while(1)
     {

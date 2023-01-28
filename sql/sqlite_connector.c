@@ -90,4 +90,22 @@ int queryTable(const char* table, SQLite3QueryResult_t* p_SQLite3QueryResult)
 int initQueryResult(SQLite3QueryResult_t* p_SQLite3QueryResult)
 {
     memset(p_SQLite3QueryResult, 0, sizeof(SQLite3QueryResult_t));
+    return SQLITE3_CONNECTOR_SUCCESS;
+}
+
+int replaceTable(const char* table, SQLite3QueryResult_t* p_SQLite3QueryResult)
+{
+    static char sql[256];
+    memset(sql, 0, sizeof(sql));
+    sprintf(sql, "UPDATE node_%s set `sendStatus`=1 where id=%d;",table,p_SQLite3QueryResult->id);
+    if (sqlite3_exec(db, sql,NULL,NULL,&errmsg)!= SQLITE_OK)
+    {
+        GW_LOG(LOG_ERROR,"%s",errmsg);
+        return SQLITE3_CONNECTOR_FAILURE;
+    }
+    else
+    {
+        GW_LOG(LOG_DEBUG,"Replace successful!");
+        return SQLITE3_CONNECTOR_SUCCESS;
+    }
 }
