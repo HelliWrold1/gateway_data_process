@@ -1,0 +1,6 @@
+add_executable(gateway_process_test sql_test.cpp mqtt_test.cpp)
+target_link_libraries(gateway_process_test sql)
+target_link_libraries(gateway_process_test mqtt)
+target_link_libraries(gateway_process_test paho-mqtt3as)
+target_link_libraries(gateway_process_test log)
+target_link_libraries(gateway_process_test mysqlclient)

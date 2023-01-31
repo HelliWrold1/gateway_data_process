@@ -5,6 +5,10 @@
 #ifndef GATEWAY_DATA_PROCESS_MQTT_CONNECTOR_H
 #define GATEWAY_DATA_PROCESS_MQTT_CONNECTOR_H
 
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
@@ -16,37 +20,47 @@ typedef enum {
     MQTT_CONNECTOR_FAILURE,
     MQTT_CONNECTOR_CREATE_FAILURE,
     MQTT_CONNECTOR_CONNECT_FAILURE,
+    MQTT_CONNECTOR_SUBSCRIBE_FAILURE,
+    MQTT_CONNECTOR_PUBLISH_FAILURE,
     MQTT_CONNECTOR_ONLY_ON_CONNECTOR
-}MQTT_CONNECTOR_STATUS;
+} MQTT_CONNECTOR_STATUS;
 
-typedef struct sMQTTConnector{
+typedef struct sMQTTConnector {
     // paho.mqtt.MQTTAsync handle
     MQTTAsync client;
 
     // 客户端信息
-    struct sConnectorInfo {
-        const char* brokerUrl;
-        const char* clientId;
-        const char* userName;
-        const char* userPwd;
-    }connInfo;
+    struct sMQTTConnectorInfo {
+        const char *brokerUrl;
+        const char *clientId;
+        const char *userName;
+        const char *userPwd;
+    } connInfo;
+
     // 仅第一次连接成功回调
-    void (*firstSuccessConnectedCallback)(void* context, MQTTAsync_successData* response);
+    void (*firstSuccessConnectedCallback)(void *context, MQTTAsync_successData *response);
+
     // 每次连接成功回调
-    void (*eachConnectedCallback)(void* context, char* cause);
+    void (*eachConnectedCallback)(void *context, char *cause);
+
     // 连接失败回调
-    void (*connectFailureCallback)(void* context, MQTTAsync_failureData* response);
+    void (*connectFailureCallback)(void *context, MQTTAsync_failureData *response);
+
     // 连接断开回调
-    void (*connLostCallback)(void* context, char* cause);
+    void (*connLostCallback)(void *context, char *cause);
+
     // 订阅成功回调
-    void (*successSubscribedCallback)(void* context, MQTTAsync_successData* response);
+    void (*successSubscribedCallback)(void *context, MQTTAsync_successData *response);
+
     // 订阅失败回调
-    void (*subscribedFailureCallback)(void* context,  MQTTAsync_failureData* response);
+    void (*subscribedFailureCallback)(void *context, MQTTAsync_failureData *response);
+
     // 订阅消息收到回调
-    int (*msgArrivedCallback)(void* context, char* topicName, int topicLen, MQTTAsync_message *message);
+    int (*msgArrivedCallback)(void *context, char *topicName, int topicLen, MQTTAsync_message *message);
+
     // 发布的数据成功交付broker回调
-    void (*pubDeliveredCallback)(void* context, MQTTAsync_token token);
-}MQTTConnector_t;
+    void (*pubDeliveredCallback)(void *context, MQTTAsync_token token);
+} MQTTConnector_t;
 
 /**
  * @brief 初始化MQTTConnector_t结构体，除connInfo之外的变量均被初始化为对应零值，
@@ -54,13 +68,13 @@ typedef struct sMQTTConnector{
  * @param initMQTTConnector 指向被初始化的MQTTConnector_t
  * @return
  */
-void connectorInit(MQTTConnector_t *initMQTTConnector);
+void initMQTTConnector(MQTTConnector_t *initMQTTConnector);
 
 /**
  * @brief 启动连接器
  * @return
  */
-int connectorStart();
+int startMQTTConnector();
 
 /**
  * @brief 指定服务质量，订阅主题
@@ -68,7 +82,7 @@ int connectorStart();
  * @param qos 服务质量
  * @return
  */
-int connectorSubscribe(const char* topic, int qos);
+int connectorSubscribe(const char *topic, int qos);
 
 /**
  * @brief 发布指定主题、服务质量、载荷的消息
@@ -77,7 +91,7 @@ int connectorSubscribe(const char* topic, int qos);
  * @param qos
  * @return
  */
-int connectorPublish(const char* topic, void* payload, int qos);
+int connectorPublish(const char *topic, const char *payload, int qos);
 
 /**
  * @brief 连接成功回调，仅在第一次连接成功时回调
@@ -85,7 +99,7 @@ int connectorPublish(const char* topic, void* payload, int qos);
  * @param context
  * @param response
  */
-void defaultOnSuccessConnected(void* context, MQTTAsync_successData* response);
+void defaultOnSuccessConnected(void *context, MQTTAsync_successData *response);
 
 /**
  * @brief 连接成功回调
@@ -93,7 +107,7 @@ void defaultOnSuccessConnected(void* context, MQTTAsync_successData* response);
  * @param context
  * @param cause
  */
-void defaultOnConnectedCallBack(void* context, char* cause);
+void defaultOnConnectedCallBack(void *context, char *cause);
 
 /**
  * @brief 连接失败回调
@@ -101,7 +115,7 @@ void defaultOnConnectedCallBack(void* context, char* cause);
  * @param context
  * @param response
  */
-void defaultOnConnectFailure(void* context, MQTTAsync_failureData* response);
+void defaultOnConnectFailure(void *context, MQTTAsync_failureData *response);
 
 /**
  * @brief 连接断开回调
@@ -109,7 +123,7 @@ void defaultOnConnectFailure(void* context, MQTTAsync_failureData* response);
  * @param context
  * @param cause
  */
-void defaultConnLost(void* context, char* cause);
+void defaultConnLost(void *context, char *cause);
 
 /**
  * @brief 订阅成功回调
@@ -117,14 +131,14 @@ void defaultConnLost(void* context, char* cause);
  * @param context
  * @param response
  */
-void defaultOnSuccessSubscribe(void* context, MQTTAsync_successData* response);
+void defaultOnSuccessSubscribe(void *context, MQTTAsync_successData *response);
 
 /**
  * @brief 订阅失败回调
  * @param context
  * @param response
  */
-void defaultOnFailureSubscribe(void* context, MQTTAsync_failureData* response);
+void defaultOnFailureSubscribe(void *context, MQTTAsync_failureData *response);
 
 /**
  * @brief 消息收到回调
@@ -135,7 +149,7 @@ void defaultOnFailureSubscribe(void* context, MQTTAsync_failureData* response);
  * @param message
  * @return int
  */
-int defaultMsgArrived(void* context, char* topicName, int topicLen, MQTTAsync_message *message);
+int defaultMsgArrived(void *context, char *topicName, int topicLen, MQTTAsync_message *message);
 
 /**
  * @brief 消息交付回调
@@ -143,6 +157,10 @@ int defaultMsgArrived(void* context, char* topicName, int topicLen, MQTTAsync_me
  * @param context
  * @param token
  */
-void defaultDelivered(void* context, MQTTAsync_token token);
+void defaultDelivered(void *context, MQTTAsync_token token);
+
+#if defined(__cplusplus)
+}
+#endif
 
 #endif //GATEWAY_DATA_PROCESS_MQTT_CONNECTOR_H

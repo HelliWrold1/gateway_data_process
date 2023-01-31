@@ -16,7 +16,7 @@ char* logLevelGet(const int level)
     else if (level == LOG_ERROR)
         return "ERROR";
     else
-        return "UNKNOW";
+        return "UNKNOWN";
 }
 
 void gw_log(const int level, const char* date, const char* time, const char* file,

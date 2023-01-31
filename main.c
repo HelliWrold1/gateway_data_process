@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include "mqtt/mqtt_connector.h"
 #include "json/json_str_convertor.h"
-#include "sql/sqlite_connector.h"
+#include "sql/mariadb_connector.h"
 #include <string.h>
 #include <malloc.h>
 
@@ -20,7 +20,7 @@ int msgArrivedCallback(void* context, char* topicName, int topicLen, MQTTAsync_m
 int main() {
     printf("Hello, World!\n");
     MQTTConnector_t mqttConn;
-    connectorInit(&mqttConn);
+    initMQTTConnector(&mqttConn);
 //    取消下面四句注释，可以更改客户端信息
 //    mqttConn.connInfo.brokerUrl = "localhost:1883";
 //    mqttConn.connInfo.clientId = "mqttConnector";
@@ -28,18 +28,13 @@ int main() {
 //    mqttConn.connInfo.userPwd = "testPwd";
     mqttConn.eachConnectedCallback = eachConnectedCallback;
     mqttConn.msgArrivedCallback = msgArrivedCallback;
-    connectorStart(&mqttConn);
+    startMQTTConnector();
 
-    connectDatabase(); // 连接sqlite3数据库
-    SQLite3QueryResult_t sqLite3QueryResult;
-    initQueryResult(&sqLite3QueryResult);
-    queryTable("67678D5E",&sqLite3QueryResult);
-    GW_LOG(LOG_DEBUG, "%d", sqLite3QueryResult.id);
-    GW_LOG(LOG_DEBUG, "%d", sqLite3QueryResult.fcnt);
-    GW_LOG(LOG_DEBUG, sqLite3QueryResult.json);
-    if (SQLITE3_CONNECTOR_SUCCESS == replaceTable("67678D5E", &sqLite3QueryResult))
+    MariadbConnector_t mariadbConn;
+    initMariadbConnector(&mariadbConn);
+    if (MARIADB_CONNECTOR_SUCCESS == connectMariadb(&mariadbConn))
     {
-        GW_LOG(LOG_DEBUG,"Replaced");
+        GW_LOG(LOG_INFO, "connected");
     }
 
     while(1)
@@ -67,18 +62,17 @@ int msgArrivedCallback(void* context, char* topicName, int topicLen, MQTTAsync_m
     if (strstr(topicName,"uplinkFromNode/B827EBFFFE2114B5"))
     {
         cJSON * json = NULL;
-        cJsonParsedDataResult *cpdr = (cJsonParsedDataResult*)malloc(sizeof(cJsonParsedDataResult));
+        cJsonParsedDataResult *pCjsonParsedDataResult = (cJsonParsedDataResult*)malloc(sizeof(cJsonParsedDataResult));
         if ((json = cJSON_Parse(payload)) == NULL)
         {
             GW_LOG(LOG_ERROR,"Failed to parse json buffer");
         }
         else
         {
-            GetcJsonParsedDataResult(payload, json,cpdr);
-            createTable(cpdr->devaddr);
-            insertTable(cpdr->devaddr,payload);
+            GetcJsonParsedDataResult(payload, json,pCjsonParsedDataResult);
+
         }
-        free(cpdr);
+        free(pCjsonParsedDataResult);
         cJSON_Delete(json);
     }
     MQTTAsync_freeMessage(&message);

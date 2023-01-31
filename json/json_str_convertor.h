@@ -5,18 +5,21 @@
 #ifndef GATEWAY_DATA_PROCESS_JSON_STR_CONVERTOR_H
 #define GATEWAY_DATA_PROCESS_JSON_STR_CONVERTOR_H
 
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
 #include "cjson/cJSON.h"
 
 /**
  * @brief Parsed cJSON data result
  *
  */
-typedef struct
-{
-    char* app;
+typedef struct {
+    char *app;
     int battery;
-    char* codr;
-    char* data;
+    char *codr;
+    char *data;
     int data1;
     int data2;
     int data3;
@@ -24,28 +27,31 @@ typedef struct
     int data5;
     int data6;
     int data7;
-    char* datetime;
-    char* datr;
-    char* desc;
-    char* devaddr;
+    char *datetime;
+    char *datr;
+    char *desc;
+    char *devaddr;
     int fcnt;
     double freq;
     int lsnr;
-    char* mac;
+    char *mac;
     int port;
     int rssi;
-}cJsonParsedDataResult;
+} cJsonParsedDataResult;
 
 /**
  * @brief Parsed cJSON control result
  *
  */
-typedef struct
-{
-    
-}cJsonParsedCtlResult;
+typedef struct {
 
-void GetcJsonParsedDataResult(char* buffer, cJSON* json, cJsonParsedDataResult* cpdr);
+} cJsonParsedCtlResult;
+
+void GetcJsonParsedDataResult(char *buffer, cJSON *json, cJsonParsedDataResult *cpdr);
 void GetcJsonParsedCtlResult(char *buffer, cJSON *json, cJsonParsedCtlResult *cpcr);
+
+#if defined(__cplusplus)
+}
+#endif
 
 #endif //GATEWAY_DATA_PROCESS_JSON_STR_CONVERTOR_H

@@ -3,22 +3,22 @@
  */
 #include "mqtt_connector.h"
 
-static MQTTConnector_t *p_MQTTConnector;
+static MQTTConnector_t *pMQTTConnector;
 
-void connectorInit(MQTTConnector_t *initMQTTConnector)
+void initMQTTConnector(MQTTConnector_t *initMQTTConnector)
 {
-    p_MQTTConnector = initMQTTConnector;
-    memset(p_MQTTConnector, 0, sizeof(MQTTConnector_t));
-    p_MQTTConnector->connInfo.brokerUrl = "localhost:1883";
-    p_MQTTConnector->connInfo.clientId = "mqttConnector";
-    p_MQTTConnector->connInfo.userName = "HelliWrold1";
-    p_MQTTConnector->connInfo.userPwd = "HelloWorld!";
+    pMQTTConnector = initMQTTConnector;
+    memset(pMQTTConnector, 0, sizeof(MQTTConnector_t));
+    pMQTTConnector->connInfo.brokerUrl = "localhost:1883";
+    pMQTTConnector->connInfo.clientId = "mqttConnector";
+    pMQTTConnector->connInfo.userName = "HelliWrold1";
+    pMQTTConnector->connInfo.userPwd = "HelloWorld!";
 }
 
-int connectorStart()
+int startMQTTConnector()
 {
     // 只有一个连接器/客户端
-    if (p_MQTTConnector->client != 0)
+    if (pMQTTConnector->client != 0)
         return MQTT_CONNECTOR_ONLY_ON_CONNECTOR;
     int rc;
     MQTTAsync_connectOptions conn_opts = MQTTAsync_connectOptions_initializer;
@@ -27,43 +27,47 @@ int connectorStart()
     conn_opts.maxRetryInterval = 5; // 20s，最大重连间隔
 
     // 创建客户端
-    rc = MQTTAsync_create(&p_MQTTConnector->client, p_MQTTConnector->connInfo.brokerUrl,
-                p_MQTTConnector->connInfo.clientId, MQTTCLIENT_PERSISTENCE_NONE, NULL);
+    rc = MQTTAsync_create(&pMQTTConnector->client, pMQTTConnector->connInfo.brokerUrl,
+                pMQTTConnector->connInfo.clientId, MQTTCLIENT_PERSISTENCE_NONE, NULL);
     if(rc != MQTTASYNC_SUCCESS)
     {
         return MQTT_CONNECTOR_CREATE_FAILURE;
     }
     // 设置回调函数
-    if(p_MQTTConnector->eachConnectedCallback)
-        MQTTAsync_setConnected(p_MQTTConnector->client,NULL,p_MQTTConnector->eachConnectedCallback);
+    if(pMQTTConnector->eachConnectedCallback)
+        MQTTAsync_setConnected(pMQTTConnector->client,NULL,pMQTTConnector->eachConnectedCallback);
     else
-        MQTTAsync_setConnected(p_MQTTConnector->client,NULL,defaultOnConnectedCallBack);
-    if(p_MQTTConnector->connLostCallback)
-        MQTTAsync_setConnectionLostCallback(p_MQTTConnector->client,NULL,p_MQTTConnector->connLostCallback);
+        MQTTAsync_setConnected(pMQTTConnector->client,NULL,defaultOnConnectedCallBack);
+    if(pMQTTConnector->connLostCallback)
+        MQTTAsync_setConnectionLostCallback(pMQTTConnector->client,NULL,pMQTTConnector->connLostCallback);
     else
-        MQTTAsync_setConnectionLostCallback(p_MQTTConnector->client,NULL,defaultConnLost);
-    if(p_MQTTConnector->firstSuccessConnectedCallback)
-        conn_opts.onSuccess = p_MQTTConnector->firstSuccessConnectedCallback;
+        MQTTAsync_setConnectionLostCallback(pMQTTConnector->client,NULL,defaultConnLost);
+    if(pMQTTConnector->firstSuccessConnectedCallback)
+        conn_opts.onSuccess = pMQTTConnector->firstSuccessConnectedCallback;
     else
         conn_opts.onSuccess = defaultOnSuccessConnected;
-    if(p_MQTTConnector->connectFailureCallback)
-        conn_opts.onFailure = p_MQTTConnector->connectFailureCallback;
+    if(pMQTTConnector->connectFailureCallback)
+        conn_opts.onFailure = pMQTTConnector->connectFailureCallback;
     else
         conn_opts.onFailure = defaultOnConnectFailure;
-    if(p_MQTTConnector->pubDeliveredCallback)
-        MQTTAsync_setDeliveryCompleteCallback(p_MQTTConnector->client,NULL,p_MQTTConnector->pubDeliveredCallback);
+    if(pMQTTConnector->pubDeliveredCallback)
+        MQTTAsync_setDeliveryCompleteCallback(pMQTTConnector->client,NULL,pMQTTConnector->pubDeliveredCallback);
     else
-        MQTTAsync_setDeliveryCompleteCallback(p_MQTTConnector->client,NULL,defaultDelivered);
-    if(p_MQTTConnector->msgArrivedCallback)
-        MQTTAsync_setMessageArrivedCallback(p_MQTTConnector->client,NULL,p_MQTTConnector->msgArrivedCallback);
+        MQTTAsync_setDeliveryCompleteCallback(pMQTTConnector->client,NULL,defaultDelivered);
+    if(pMQTTConnector->msgArrivedCallback)
+        MQTTAsync_setMessageArrivedCallback(pMQTTConnector->client,NULL,pMQTTConnector->msgArrivedCallback);
     else
-        MQTTAsync_setMessageArrivedCallback(p_MQTTConnector->client,NULL,defaultMsgArrived);
+        MQTTAsync_setMessageArrivedCallback(pMQTTConnector->client,NULL,defaultMsgArrived);
 
     // 连接Broker
-    if( (rc = MQTTAsync_connect(p_MQTTConnector->client, &conn_opts)) != MQTTASYNC_SUCCESS )
+    if( (rc = MQTTAsync_connect(pMQTTConnector->client, &conn_opts)) != MQTTASYNC_SUCCESS )
     {
         printf("First connection failed, error code:%d\n", rc);
         return MQTT_CONNECTOR_CONNECT_FAILURE;
+    }
+    else
+    {
+        return MQTT_CONNECTOR_SUCCESS;
     }
 }
 
@@ -72,21 +76,21 @@ int connectorSubscribe(const char* topic, int qos)
     int rc;
     MQTTAsync_responseOptions opts = MQTTAsync_responseOptions_initializer;
 
-    opts.context = p_MQTTConnector->client;
+    opts.context = pMQTTConnector->client;
     // 设置订阅成功回调
-    if(p_MQTTConnector->successSubscribedCallback)
-        opts.onSuccess = p_MQTTConnector->successSubscribedCallback;
+    if(pMQTTConnector->successSubscribedCallback)
+        opts.onSuccess = pMQTTConnector->successSubscribedCallback;
     else
         opts.onSuccess = defaultOnSuccessSubscribe;
     //opts.onFailure = NULL; // 订阅失败回调
-    if(p_MQTTConnector->subscribedFailureCallback)
-        opts.onFailure = p_MQTTConnector->subscribedFailureCallback;
+    if(pMQTTConnector->subscribedFailureCallback)
+        opts.onFailure = pMQTTConnector->subscribedFailureCallback;
     else
         opts.onFailure = defaultOnFailureSubscribe;
-    if ((rc = MQTTAsync_subscribe(p_MQTTConnector->client, topic, qos, &opts)) != MQTTASYNC_SUCCESS) //尝试订阅主题
+    if ((rc = MQTTAsync_subscribe(pMQTTConnector->client, topic, qos, &opts)) != MQTTASYNC_SUCCESS) //尝试订阅主题
     {
         GW_LOG(LOG_ERROR,"Failed to subscribe topic '%s' , error code:%d\n",topic, rc);
-        return MQTT_CONNECTOR_FAILURE;
+        return MQTT_CONNECTOR_SUBSCRIBE_FAILURE;
     }
     else
     {
@@ -95,20 +99,20 @@ int connectorSubscribe(const char* topic, int qos)
     }
 }
 
-int connectorPublish(const char* topic, void* payload, int qos)
+int connectorPublish(const char* topic, const char *payload, int qos)
 {
     int rc;
     MQTTAsync_message pubmsg = MQTTAsync_message_initializer;
     MQTTAsync_responseOptions opts = MQTTAsync_responseOptions_initializer;
-    opts.context = p_MQTTConnector->client;
-    pubmsg.payload = payload;
-    pubmsg.payloadlen = strlen(payload);
+    opts.context = pMQTTConnector->client;
+    pubmsg.payload = (void*)payload;
+    pubmsg.payloadlen = (int)strlen(payload);
     pubmsg.qos = qos;
-    GW_LOG(LOG_DEBUG,"Sending:'%s\n",(char*)pubmsg.payload);
-    if ((rc = MQTTAsync_sendMessage(p_MQTTConnector->client, topic, &pubmsg, &opts)) != MQTTASYNC_SUCCESS)
+    GW_LOG(LOG_DEBUG,"Sending:'%s'\n",(char*)pubmsg.payload);
+    if ((rc = MQTTAsync_sendMessage(pMQTTConnector->client, topic, &pubmsg, &opts)) != MQTTASYNC_SUCCESS)
     {
         GW_LOG(LOG_ERROR,"Failed to send message: '%s' , error code:%d\n", (char *)pubmsg.payload, rc);
-        return MQTT_CONNECTOR_FAILURE;
+        return MQTT_CONNECTOR_PUBLISH_FAILURE;
     }
     else
     {

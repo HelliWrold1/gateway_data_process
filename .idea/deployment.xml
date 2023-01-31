@@ -1,7 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
-  <component name="PublishConfigData" remoteFilesAllowedToDisappearOnAutoupload="false">
+  <component name="PublishConfigData" serverName="raspi-remote-cmake (8247d681-fe27-4b3b-aef9-c1fc53ad13e9)" remoteFilesAllowedToDisappearOnAutoupload="false">
     <serverData>
+      <paths name="rapi-test-cmake">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/DateConverter_withTests" local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
       <paths name="raspi-remote-cmake (8247d681-fe27-4b3b-aef9-c1fc53ad13e9)">
         <serverdata>
           <mappings>
@@ -9,15 +16,9 @@
           </mappings>
           <excludedPaths>
             <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-debug" />
+            <excludedPath local="true" path="$PROJECT_DIR$/doctest/cmake-build-debug" />
             <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-debug" />
           </excludedPaths>
-        </serverdata>
-      </paths>
-      <paths name="ubuntu-remote">
-        <serverdata>
-          <mappings>
-            <mapping local="$PROJECT_DIR$" web="/" />
-          </mappings>
         </serverdata>
       </paths>
       <paths name="ubuntu-remote-make (bdf358d8-8406-4253-9379-08d4c7bf9202)">
