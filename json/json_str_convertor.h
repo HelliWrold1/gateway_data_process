@@ -9,46 +9,67 @@
 extern "C" {
 #endif
 
+#define _XOPEN_SOURCE
+#include <time.h>
 #include "cjson/cJSON.h"
+#include <stdio.h>
+#include <string.h>
+#include <malloc.h>
+#include <errno.h>
+#include "log.h"
 
-/**
- * @brief Parsed cJSON data result
- *
- */
-typedef struct {
-    char *app;
-    int battery;
-    char *codr;
-    char *data;
-    int data1;
-    int data2;
-    int data3;
-    int data4;
-    int data5;
-    int data6;
-    int data7;
-    char *datetime;
-    char *datr;
-    char *desc;
-    char *devaddr;
-    int fcnt;
-    double freq;
-    int lsnr;
-    char *mac;
-    int port;
-    int rssi;
-} cJsonParsedDataResult;
+typedef enum
+{
+    JSON_SUCCESS = 0,
+    JSON_PARSE_FAILURE = 1,
+}JSON_STATUS;
 
-/**
- * @brief Parsed cJSON control result
- *
- */
-typedef struct {
+typedef enum
+{
+    TYPE_SENSOR_DATA,
+    TYPE_CONTROL_DATA,
+    TYPE_INTERVAL_TIME_DATA = 0x1E,
+}DATA_TYPE;
 
-} cJsonParsedCtlResult;
+typedef struct sJsonStrConvertor{
+    const cJSON * json;
+    struct
+    {
+        const char * app;
+        int battery;
+        const char *data;
+        int datatype;
+        const char *datetime;
+        const char *devaddr;
+        int fcnt;
+        const char *mac;
 
-void GetcJsonParsedDataResult(char *buffer, cJSON *json, cJsonParsedDataResult *cpdr);
-void GetcJsonParsedCtlResult(char *buffer, cJSON *json, cJsonParsedCtlResult *cpcr);
+        double temp;
+        double humi;
+        double lux;
+        double co;
+        double co2;
+        double h2s;
+        double nh3;
+
+        int io4;
+        int io5;
+        int io8;
+        int io9;
+        int io11;
+        int io14;
+        int io15;
+
+        const char * intervaltime;
+
+        const char* localtime;
+    }parsedData;
+    char * str;
+}JsonStrConvertor_t;
+
+int parseNodeUplink(char* buffer, JsonStrConvertor_t* pJsonConvertor);
+
+void deleteParsedNodeUplink(JsonStrConvertor_t* pJsonConvertor);
 
 #if defined(__cplusplus)
 }

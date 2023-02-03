@@ -14,6 +14,9 @@ static const char* g_topic_downlink = "downlinkToNode"; // downlink to Node
 static const char* g_topic_bridgeStatus = "$SYS/broker/connection/raspberrypi.raspberry/state"; // $SYS/broker/connection/#
 static const int g_qos = 1;
 
+static MariadbConnector_t mariadbConnRecv;
+static MariadbConnector_t mariadbConnSend;
+
 void eachConnectedCallback(void* context, char* cause);
 int msgArrivedCallback(void* context, char* topicName, int topicLen, MQTTAsync_message *message);
 
@@ -30,18 +33,22 @@ int main() {
     mqttConn.msgArrivedCallback = msgArrivedCallback;
     startMQTTConnector();
 
-    MariadbConnector_t mariadbConn;
-    initMariadbConnector(&mariadbConn);
-    if (MARIADB_CONNECTOR_SUCCESS == connectMariadb(&mariadbConn))
+    initMariadbConnector(&mariadbConnRecv);
+    initMariadbConnector(&mariadbConnSend);
+    if (connectMariadb(&mariadbConnRecv) != MARIADB_CONNECTOR_SUCCESS)
     {
-        GW_LOG(LOG_INFO, "connected");
+        GW_LOG(LOG_ERROR, "Mariadb connector Recv connection failed");
+        return 1;
     }
 
-    while(1)
+    if (connectMariadb(&mariadbConnSend) != MARIADB_CONNECTOR_SUCCESS)
     {
-//        connectorPublish("test","hello,hi,hey",1);
-//        sleep(10);
+        GW_LOG(LOG_ERROR, "Mariadb connector Send connection failed");
+        return 1;
     }
+
+    while(1){ }
+
     return 0;
 }
 
@@ -61,19 +68,12 @@ int msgArrivedCallback(void* context, char* topicName, int topicLen, MQTTAsync_m
            message->payloadlen);
     if (strstr(topicName,"uplinkFromNode/B827EBFFFE2114B5"))
     {
-        cJSON * json = NULL;
-        cJsonParsedDataResult *pCjsonParsedDataResult = (cJsonParsedDataResult*)malloc(sizeof(cJsonParsedDataResult));
-        if ((json = cJSON_Parse(payload)) == NULL)
-        {
-            GW_LOG(LOG_ERROR,"Failed to parse json buffer");
-        }
-        else
-        {
-            GetcJsonParsedDataResult(payload, json,pCjsonParsedDataResult);
+        JsonStrConvertor_t jsonStrConvertor;
+        parseNodeUplink(payload, &jsonStrConvertor);
+        mariadbConnRecv.table = jsonStrConvertor.parsedData.devaddr;
+        mariadbCreateTable(&mariadbConnRecv);
 
-        }
-        free(pCjsonParsedDataResult);
-        cJSON_Delete(json);
+        deleteParsedNodeUplink(&jsonStrConvertor);
     }
     MQTTAsync_freeMessage(&message);
     MQTTAsync_free(topicName);

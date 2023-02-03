@@ -12,7 +12,8 @@ void initMariadbConnector(MariadbConnector_t* pMariadbConn)
     pMariadbConn->connInfo.userName = "paho";
     pMariadbConn->connInfo.userPwd = "process";
     pMariadbConn->connInfo.db = "test";
-    pMariadbConn->sql_timeout = 7;
+    pMariadbConn->sql_timeout = 7; // 超时时间
+    pMariadbConn->reconnect = 1; // 开启重连
 }
 
 void initMariadbQueryResult(MariadbQueryResult_t* pMariadbRes)
@@ -22,10 +23,16 @@ void initMariadbQueryResult(MariadbQueryResult_t* pMariadbRes)
 
 int connectMariadb(MariadbConnector_t * pMariadbConn)
 {
+    // 设置超时时间
     if(mysql_options(&pMariadbConn->mysql,MYSQL_OPT_CONNECT_TIMEOUT,&pMariadbConn->sql_timeout))
     {
         GW_LOG(LOG_ERROR, mysql_error(&pMariadbConn->mysql));
-//        GW_LOG(LOG_ERROR,"Options Set ERROR!");
+        return MARIADB_CONNECTOR_CONNECT_FAILURE;
+    }
+    //
+    if(mysql_options(&pMariadbConn->mysql, MYSQL_OPT_RECONNECT, &pMariadbConn->reconnect))
+    {
+        GW_LOG(LOG_ERROR, mysql_error(&pMariadbConn->mysql));
         return MARIADB_CONNECTOR_CONNECT_FAILURE;
     }
     if(!mysql_real_connect(&pMariadbConn->mysql, pMariadbConn->connInfo.ip, pMariadbConn->connInfo.userName,
@@ -33,7 +40,6 @@ int connectMariadb(MariadbConnector_t * pMariadbConn)
     {
         GW_LOG(LOG_ERROR, mysql_error(&pMariadbConn->mysql));
         mysql_close(&pMariadbConn->mysql);
-//        GW_LOG(LOG_ERROR,"Connection Failed!");
         return MARIADB_CONNECTOR_CONNECT_FAILURE;
     }
     else
@@ -41,11 +47,6 @@ int connectMariadb(MariadbConnector_t * pMariadbConn)
         GW_LOG(LOG_DEBUG,"Mariadb connect database %s successfully.", pMariadbConn->mysql.db);
         return MARIADB_CONNECTOR_SUCCESS;
     }
-}
-
-int mariadbExistsTable(MariadbConnector_t* pMariadbConn)
-{
-
 }
 
 int mariadbCreateTable(MariadbConnector_t* pMariadbConn)

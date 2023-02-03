@@ -34,6 +34,7 @@ typedef struct sMariadbConnector {
         const char *db;
     } connInfo;
     unsigned int sql_timeout;
+    my_bool reconnect;
     const char *table;
     char sql[1024];
 } MariadbConnector_t;

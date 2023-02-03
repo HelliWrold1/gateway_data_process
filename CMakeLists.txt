@@ -21,6 +21,7 @@ include_directories(
 add_subdirectory(sql)
 add_subdirectory(log)
 add_subdirectory(mqtt)
+add_subdirectory(json)
 target_link_libraries(gateway_data_process
         paho-mqtt3as
         cjson
@@ -28,5 +29,6 @@ target_link_libraries(gateway_data_process
         sql
         log
         mqtt
+        json
         )
 add_subdirectory(doctest)
