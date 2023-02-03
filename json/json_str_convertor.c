@@ -85,6 +85,11 @@ int parseNodeUplink(char* buffer, JsonStrConvertor_t* pJsonConvertor)
                                 time.tm_year+1900,time.tm_mon+1,time.tm_mday,time.tm_hour,time.tm_min,time.tm_sec);
     addJsonFlag = cJSON_AddStringToObject(json,"localtime",localTimeStr);
 
+    pJsonConvertor->parsedData.localtime = cJSON_GetObjectItem(json, "localtime")->valuestring;
+    pJsonConvertor->parsedData.devaddr = cJSON_GetObjectItem(json, "devaddr")->valuestring;
+    pJsonConvertor->parsedData.battery = cJSON_GetObjectItem(json, "battery")->valueint;
+    pJsonConvertor->parsedData.app = cJSON_GetObjectItem(json, "app")->valuestring;
+
     // Remove data1~7 and app...
     for (i = 0; i < 7; ++i) {
         cJSON_DeleteItemFromObject(json,key[2][i]);

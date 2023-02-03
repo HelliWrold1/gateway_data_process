@@ -72,7 +72,7 @@ int msgArrivedCallback(void* context, char* topicName, int topicLen, MQTTAsync_m
         parseNodeUplink(payload, &jsonStrConvertor);
         mariadbConnRecv.table = jsonStrConvertor.parsedData.devaddr;
         mariadbCreateTable(&mariadbConnRecv);
-
+        mariadbInsertRecord(&mariadbConnRecv,jsonStrConvertor.str,0);
         deleteParsedNodeUplink(&jsonStrConvertor);
     }
     MQTTAsync_freeMessage(&message);
