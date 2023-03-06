@@ -7,6 +7,7 @@
 TEST_CASE("parseNodeUplink")
 {
     JsonStrConvertor_t jsonStrConvertor;
+    memset(&jsonStrConvertor, 0, sizeof(jsonStrConvertor));
     char sensor_str[] =
     "{\"app\":\"Raspiber-handler\",\"battery\":0,\"codr\":\"4/5\",\"data\":\"0012345678901234\",\"data1\":18,\"data2\":52,\"data3\":86,\"data4\":120,\"data5\":144,\"data6\":18,\"data7\":52,\"datatype\":0,\"datetime\":\"2023-01-27T18:13:05Z\",\"datr\":\"SF10BW125\",\"desc\":\"ABP-Ra-08-Control\",\"devaddr\":\"67678D5E\",\"fcnt\":1,\"freq\":474.7,\"lsnr\":-10.2,\"mac\":\"B827EBFFFE2114B5\",\"port\":2,\"rssi\":-115}";
     char ctl_str[] =
@@ -19,6 +20,7 @@ TEST_CASE("parseNodeUplink")
         CHECK(JSON_SUCCESS == parseNodeUplink(sensor_str,&jsonStrConvertor));
         CHECK(jsonStrConvertor.json != (cJSON*)NULL);
         CHECK(jsonStrConvertor.parsedData.lux != 0);
+        CHECK(jsonStrConvertor.parsedData.devaddr != NULL);
         CHECK(jsonStrConvertor.str != NULL);
     }
     SUBCASE("control str")
@@ -26,6 +28,7 @@ TEST_CASE("parseNodeUplink")
         CHECK(JSON_SUCCESS == parseNodeUplink(ctl_str,&jsonStrConvertor));
         CHECK(jsonStrConvertor.json != (cJSON*)NULL);
         CHECK(jsonStrConvertor.parsedData.io15 != 0);
+        CHECK(jsonStrConvertor.parsedData.devaddr != 0);
         CHECK(jsonStrConvertor.str != NULL);
     }
 
@@ -34,6 +37,7 @@ TEST_CASE("parseNodeUplink")
         CHECK(JSON_SUCCESS == parseNodeUplink(time_str, &jsonStrConvertor));
         CHECK(jsonStrConvertor.json != (cJSON*)NULL);
         CHECK(jsonStrConvertor.parsedData.intervaltime != NULL);
+        CHECK(jsonStrConvertor.parsedData.devaddr != NULL);
         CHECK(jsonStrConvertor.str != NULL);
     }
 

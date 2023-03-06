@@ -20,6 +20,16 @@ extern "C" {
 
 typedef enum
 {
+    SENSOR_LINE,
+    CTL_LINE,
+    DATA_LINE,
+    REMOVE_LINE,
+    KEY_LINE,
+    KEY_RANK = 7,
+}KEY_ARRAY;
+
+typedef enum
+{
     JSON_SUCCESS = 0,
     JSON_PARSE_FAILURE = 1,
 }JSON_STATUS;
@@ -70,6 +80,12 @@ typedef struct sJsonStrConvertor{
 int parseNodeUplink(char* buffer, JsonStrConvertor_t* pJsonConvertor);
 
 void deleteParsedNodeUplink(JsonStrConvertor_t* pJsonConvertor);
+
+void fillParsedSensorData(JsonStrConvertor_t *pJsonConvertor, cJSON *json,  char *key[KEY_LINE][KEY_RANK]);
+
+void fillParsedControlData(JsonStrConvertor_t *pJsonConvertor, cJSON *json,  char *key[KEY_LINE][KEY_RANK]);
+
+void fillParsedCommonData(JsonStrConvertor_t *pJsonConvertor, cJSON *json);
 
 #if defined(__cplusplus)
 }
