@@ -89,6 +89,119 @@ int parseNodeUplink(char *buffer, JsonStrConvertor_t *pJsonConvertor) {
     return JSON_SUCCESS;
 }
 
+int parseRuleFile(const char *filename, struct sParsedJsonRule *pJsonRule)
+{
+    // 读取json文件
+    FILE *fp = fopen(filename, "r");
+    if (!fp)
+        return JSON_FILE_READ_FAILURE;
+    size_t file_size;
+    long pos;
+    char *json_str;
+    fseek(fp, 0L, SEEK_END);
+    pos = ftell(fp);
+    if (pos < 0) {
+        fclose(fp);
+        return JSON_FILE_READ_FAILURE;
+    }
+    file_size = pos;
+    rewind(fp);
+    json_str = (char *) malloc(sizeof(char) * (file_size + 1));
+    if (!json_str) {
+        fclose(fp);
+        return JSON_FILE_READ_FAILURE;
+    }
+    if (fread(json_str, file_size, 1, fp) < 1) {
+        if (ferror(fp)) {
+            fclose(fp);
+            free(json_str);
+            return JSON_FILE_READ_FAILURE;
+        }
+    }
+    fclose(fp);
+    json_str[file_size] = '\0';
+
+    GW_LOG(LOG_DEBUG,json_str);
+
+    // 解析文件内容
+    cJSON *json;
+
+    if ((json = cJSON_Parse(json_str)) == NULL) {
+        return JSON_PARSE_FAILURE;
+    }
+
+    // 提取rules
+    int rule_num = cJSON_GetArraySize(json);
+    cJSON *rules[rule_num]; // 根据规则数量定义
+    char num_str[10];
+    for (int i = 0; i < rule_num; ++i) {
+        memset(num_str, 0, 10);
+        sprintf(num_str, "%d",i);
+        rules[i] = cJSON_GetObjectItem(json, num_str);
+    }
+
+    // 提取rule
+    for (int i = 0; i < rule_num; ++i) {
+        RulesMap_t rule;
+
+        // 提取source
+        rule.source.assign(cJSON_GetObjectItem(rules[i], "source")->valuestring);
+        // 提取conditions
+        cJSON *conditions = cJSON_GetObjectItem(rules[i], "conditions");
+        int condition_num = cJSON_GetArraySize(conditions);
+        for (int j = 0; j < condition_num; ++j) { // 遍历某规则内的所有条件组
+            // 将单个condition构造出来一个map，与序号构成一个嵌套map
+            memset(num_str, 0, 10);
+            sprintf(num_str, "%d", j);
+            cJSON *condition = cJSON_GetObjectItem(conditions, num_str)->child;
+            std::map<const std::string, double> factors;
+            while (condition!= nullptr) {
+                std::string factor_str(condition->string);
+                factors.insert({factor_str, cJSON_GetNumberValue(condition)});
+                condition = condition->next;
+            }
+            rule.conditions.insert({std::to_string(i), factors}); // 插入一个condition
+        }
+
+        // 提取targets
+        cJSON *targets = cJSON_GetObjectItem(rules[i], "targets");
+        int target_num = cJSON_GetArraySize(targets);
+        for (int j = 0; j < target_num; ++j) {
+            memset(num_str, 0, 10);
+            sprintf(num_str, "%d", j);
+            cJSON *target = cJSON_GetObjectItem(targets, num_str);
+            std::vector<std::string> nodes;
+            int node_num = cJSON_GetArraySize(target);
+            for (int k = 0; k < node_num; ++k) {
+                std::string node_str(cJSON_GetArrayItem(target, k)->valuestring);
+                nodes.push_back(node_str);
+            }
+            rule.targets.insert({std::to_string(i), nodes});
+
+        }
+
+        // 提取action
+        cJSON *actions = cJSON_GetObjectItem(rules[i], "actions");
+        int act_num = cJSON_GetArraySize(actions);
+        for (int j = 0; j < target_num; ++j) {
+            memset(num_str, 0, 10);
+            sprintf(num_str, "%d", j);
+            cJSON *action = cJSON_GetObjectItem(actions, num_str)->child;
+            std::map<const std::string, const std::string> acts;
+            while (action!= nullptr) {
+                std::string device_str(action->string);
+                std::string action_str(cJSON_GetStringValue(action));
+                acts.insert({device_str, action_str});
+                action = action->next;
+            }
+            rule.actions.insert({std::to_string(j), acts});
+        }
+        pJsonRule->rules.push_back(rule);
+    }
+
+    return JSON_SUCCESS;
+}
+
 void deleteParsedNodeUplink(JsonStrConvertor_t *pJsonConvertor) {
     cJSON_Delete((cJSON *) pJsonConvertor->json);
     cJSON_free(pJsonConvertor->str);

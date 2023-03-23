@@ -5,18 +5,15 @@
 #ifndef GATEWAY_DATA_PROCESS_JSON_STR_CONVERTOR_H
 #define GATEWAY_DATA_PROCESS_JSON_STR_CONVERTOR_H
 
-#if defined(__cplusplus)
-extern "C" {
-#endif
-
 #define _XOPEN_SOURCE
 #include <time.h>
 #include "cjson/cJSON.h"
-#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <malloc.h>
 #include <errno.h>
 #include "log.h"
+#include "rule.h"
 
 typedef enum
 {
@@ -32,6 +29,7 @@ typedef enum
 {
     JSON_SUCCESS = 0,
     JSON_PARSE_FAILURE = 1,
+    JSON_FILE_READ_FAILURE = 2,
 }JSON_STATUS;
 
 typedef enum
@@ -87,8 +85,6 @@ void fillParsedControlData(JsonStrConvertor_t *pJsonConvertor, cJSON *json,  cha
 
 void fillParsedCommonData(JsonStrConvertor_t *pJsonConvertor, cJSON *json);
 
-#if defined(__cplusplus)
-}
-#endif
+int parseRuleFile(const char *filename, struct sParsedJsonRule *pJsonRule);
 
 #endif //GATEWAY_DATA_PROCESS_JSON_STR_CONVERTOR_H

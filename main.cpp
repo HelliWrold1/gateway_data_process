@@ -6,7 +6,7 @@
 #include "json/json_str_convertor.h"
 #include "sql/mariadb_connector.h"
 #include <string.h>
-#include <malloc.h>
+#include "DB.h"
 
 static const char* g_topic_rcvdata = "uplinkFromNode/#";  // lorawan-server uplink topic
 static const char* g_topic_uplink = "uplinkToCloud";  // uplink to Cloud
@@ -14,6 +14,7 @@ static const char* g_topic_downlink = "downlinkToNode"; // downlink to Node
 static const char* g_topic_bridgeStatus = "$SYS/broker/connection/raspberrypi.raspberry/state"; // $SYS/broker/connection/#
 static const int g_qos = 1;
 
+static DB *db;
 static MariadbConnector_t mariadbConnRecv;
 static MariadbConnector_t mariadbConnSend;
 
@@ -33,6 +34,7 @@ int main() {
     mqttConn.msgArrivedCallback = msgArrivedCallback;
     startMQTTConnector();
 
+    db = DB::getDB();
     initMariadbConnector(&mariadbConnRecv);
     initMariadbConnector(&mariadbConnSend);
     if (connectMariadb(&mariadbConnRecv) != MARIADB_CONNECTOR_SUCCESS)
@@ -68,12 +70,29 @@ int msgArrivedCallback(void* context, char* topicName, int topicLen, MQTTAsync_m
            message->payloadlen);
     if (strstr(topicName,"uplinkFromNode/B827EBFFFE2114B5"))
     {
+        // TODO 此处应为一个线程池添加任务
         JsonStrConvertor_t jsonStrConvertor;
         parseNodeUplink(payload, &jsonStrConvertor);
 
-        mariadbConnRecv.table = jsonStrConvertor.parsedData.devaddr;
-        mariadbCreateTable(&mariadbConnRecv);
-        mariadbInsertRecord(&mariadbConnRecv,jsonStrConvertor.str,0);
+        int auto_id;
+        auto_id = db->insertData(jsonStrConvertor.str,1);
+        // TODO 根据配置文件判断规则
+        char buf[80];
+        printf("pwd: %s\n",getcwd(buf,sizeof buf));
+        char jsonfile[] = "../rule/rules.json";
+        std::vector<std::string> commands;
+        Rules* rules = Rules::getRules(jsonfile);
+        rules->setSourceData(&jsonStrConvertor);
+        bool genFlag = rules->genCommands(&jsonStrConvertor,commands); // 将源数据读入到rule对象中，生成指令
+        if (genFlag == false)
+            GW_LOG(LOG_DEBUG,"gen %s 's command false",jsonStrConvertor.parsedData.devaddr);
+        for (int j = 0; j < commands.size(); ++j) {
+            std::cout<<commands[j]<<std::endl;
+        }
+//        db->insertCmd(auto_id,"");
+//        mariadbConnRecv.table = jsonStrConvertor.parsedData.devaddr;
+//        mariadbCreateTable(&mariadbConnRecv);
+//        mariadbInsertRecord(&mariadbConnRecv,jsonStrConvertor.str,0);
 
         deleteParsedNodeUplink(&jsonStrConvertor);
     }

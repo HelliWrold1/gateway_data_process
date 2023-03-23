@@ -4,12 +4,15 @@ project(gateway_data_process)
 set(CMAKE_CXX_STANDARD 11)
 
 set(SOURCE_FILES
-        main.c
+        main.cpp
         mqtt/mqtt_connector.c
         log/log.c
-        json/json_str_convertor.c
+        json/json_str_convertor.cpp
         sql/mariadb_connector.c
-        )
+        sql/mysql_pool.cpp
+        sql/DB.cpp
+        pthread_pool/PthreadPool.cpp
+        rule/rule.cpp)
 add_executable(gateway_data_process  ${SOURCE_FILES})
 
 include_directories(
@@ -17,11 +20,16 @@ include_directories(
         log
         mqtt
         sql
+        pthread_pool
+        rule
 )
 add_subdirectory(sql)
 add_subdirectory(log)
 add_subdirectory(mqtt)
 add_subdirectory(json)
+add_subdirectory(pthread_pool)
+add_subdirectory(rule)
+
 target_link_libraries(gateway_data_process
         paho-mqtt3as
         cjson
@@ -30,5 +38,8 @@ target_link_libraries(gateway_data_process
         log
         mqtt
         json
+        pthread-pool
+        pthread
+        rule
         )
 add_subdirectory(doctest)

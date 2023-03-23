@@ -5,7 +5,7 @@ set(HEADER_FILES
         )
 
 set(SOURCE_FILES
-        json_str_convertor.c
+        json_str_convertor.cpp
         )
 
 add_library(json STATIC ${SOURCE_FILES} ${HEADER_FILES})
