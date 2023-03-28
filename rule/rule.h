@@ -5,10 +5,16 @@
 #ifndef GATEWAY_DATA_PROCESS_RULE_H
 #define GATEWAY_DATA_PROCESS_RULE_H
 
+#define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_TRACE
+
+#include <spdlog/spdlog.h>
 #include <vector>
 #include <iostream>
+#include <sstream>
+#include <string>
 #include <map>
 #include "json_str_convertor.h"
+#include "DB.h"
 #include <unistd.h>
 
 typedef struct sRulesMap{
@@ -35,6 +41,17 @@ public:
     double lux;
 }SensorData_t;
 
+typedef struct sControlData{
+public:
+    bool io4;
+    bool io5;
+    bool io8;
+    bool io9;
+    bool io11;
+    bool io14;
+    bool io15;
+}ControlData_t;
+
 typedef struct sConditions{
 public:
     double co2min = -1;
@@ -55,10 +72,21 @@ public:
 
 typedef struct sActions{
     // 0: close 1: open -1: no action
-    int light;
-    int fun;
-    int curtain;
+    int light = -1;
+    int fun = -1;
+    int curtain = -1;
 }Actions_t;
+
+typedef struct sIOExceptStatus{
+public:
+    bool io4 = false;
+    bool io5 = false;
+    bool io8 = false;
+    bool io9 = false;
+    bool io11 = false;
+    bool io14 = false;
+    bool io15 = false;
+}IOExceptStatus_t;
 
 typedef struct sRule{
     std::vector<Conditions_t> conditions;
@@ -72,7 +100,8 @@ public:
     static void setRule();
     static Rules* getRules(char* jsonFilePath);
     void setSourceData(struct sJsonStrConvertor* pJsonStrConvertor);
-    bool genCommands(struct sJsonStrConvertor *pJsonStrConvertor, std::vector<std::string> &commands);
+    bool judgeIOExcepts(std::string &source);
+    bool genCommands(struct sJsonStrConvertor *pSourceJsonStrConvertor, std::vector<std::string> &commands);
 private:
     Rules();
     static void judgeAction(int &device, std::string &action, int &cmd_index);
@@ -81,11 +110,16 @@ private:
     bool judgeLtRange(double &source, double &lt_range, bool &action_flag);
     bool judgeConditions(std::string &source, int &index);
     static ParsedJsonRule_t m_json_rules;
+    int m_datatype;
     SensorData_t m_sensor_data;
+    ControlData_t m_control_data;
+    IOExceptStatus_t m_io_status;
     static int m_rules_num;
     static int m_rules_index;
     static std::map<const std::string ,Rule_t> m_rules;
-    static Rules* g_rules;
+    static std::map<const std::string ,IOExceptStatus_t> m_excepts;
+    static Rules *g_rules;
+    static DB *m_db;
 };
 
 

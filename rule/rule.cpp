@@ -4,11 +4,15 @@
 
 #include "rule.h"
 
+static auto logger = spdlog::get("logger");
+
 Rules* Rules::g_rules = nullptr;
 int Rules::m_rules_num = 0;
 int Rules::m_rules_index = 0;
 std::map<const std::string ,Rule_t> Rules::m_rules;
+std::map<const std::string ,IOExceptStatus_t> Rules::m_excepts;
 ParsedJsonRule_t Rules::m_json_rules;
+DB* Rules::m_db = DB::getDB();
 
 Rules::Rules() {
     m_rules_index = 0;
@@ -29,7 +33,7 @@ void Rules::setRule() {
 
         Rule_t rule;
         // 获取一组条件
-        if (!m_json_rules.rules[m_rules_index].conditions.empty()){
+        if (!m_json_rules.rules[m_rules_index].conditions.empty()) {
             int condition_num = m_json_rules.rules[m_rules_index].conditions.size();
             for (int i = 0; i < condition_num; ++i) {
                 Conditions_t condition;
@@ -62,8 +66,8 @@ void Rules::setRule() {
                 if (m_json_rules.rules[m_rules_index].conditions[std::to_string(i)].count("luxmax"))
                     condition.luxmax = m_json_rules.rules[m_rules_index].conditions[std::to_string(i)]["luxmax"];
                 rule.conditions.push_back(condition);
-            }
-        }
+            } // end for (int i = 0; i < condition_num; ++i)
+        } // end if (!m_json_rules.rules[m_rules_index].conditions.empty())
 
         // 获取一个目标组
         rule.targets = m_json_rules.rules[m_rules_index].targets[std::to_string(m_rules_index)];
@@ -210,65 +214,218 @@ bool Rules::judgeLtRange(double &source, double &lt_range, bool &action_flag) {
  * @param pJsonStrConvertor
  */
 void Rules::setSourceData(struct sJsonStrConvertor *pJsonStrConvertor) {
-    m_sensor_data.temp = pJsonStrConvertor->parsedData.temp;
-    m_sensor_data.humi = pJsonStrConvertor->parsedData.humi;
-    m_sensor_data.lux = pJsonStrConvertor->parsedData.lux;
-    m_sensor_data.co = pJsonStrConvertor->parsedData.co;
-    m_sensor_data.co2 = pJsonStrConvertor->parsedData.co2;
-    m_sensor_data.h2s = pJsonStrConvertor->parsedData.h2s;
-    m_sensor_data.nh3 = pJsonStrConvertor->parsedData.nh3;
-}
-bool Rules::genCommands(struct sJsonStrConvertor *pSourceJsonStrConvertor, std::vector<std::string> &commands) {
+    m_datatype = pJsonStrConvertor->parsedData.datatype;
+    if (m_datatype == 0x00){
+        m_sensor_data.temp = pJsonStrConvertor->parsedData.temp;
+        m_sensor_data.humi = pJsonStrConvertor->parsedData.humi;
+        m_sensor_data.lux = pJsonStrConvertor->parsedData.lux;
+        m_sensor_data.co = pJsonStrConvertor->parsedData.co;
+        m_sensor_data.co2 = pJsonStrConvertor->parsedData.co2;
+        m_sensor_data.h2s = pJsonStrConvertor->parsedData.h2s;
+        m_sensor_data.nh3 = pJsonStrConvertor->parsedData.nh3;
+    }
 
+    if (m_datatype == 0x01){
+        m_control_data.io4 = pJsonStrConvertor->parsedData.io4 == 0 ? false : true;
+        m_control_data.io5 = pJsonStrConvertor->parsedData.io5 == 0 ? false : true;
+        m_control_data.io8 = pJsonStrConvertor->parsedData.io8 == 0 ? false : true;
+        m_control_data.io9 = pJsonStrConvertor->parsedData.io9 == 0 ? false : true;
+        m_control_data.io11 = pJsonStrConvertor->parsedData.io11 == 0 ? false : true;
+        m_control_data.io14 = pJsonStrConvertor->parsedData.io14 == 0 ? false : true;
+        m_control_data.io15 = pJsonStrConvertor->parsedData.io15 == 0 ? false : true;
+    }
+
+    if (m_datatype == 0x1E){
+        ;
+    }
+}
+/**
+ * 判断期望的IO状态，存到rule类中
+ * @note 每次收到传感器数据的时候调用，符合condition则要对期望IO状态做出改变
+ * @param source
+ * @return 返回是否符合条件
+ */
+bool Rules::judgeIOExcepts(std::string &source) {
+    bool judgeIOFlag;
+
+    int cond_num;
+    int light, fun, curtain;
+    if (m_rules.count(source)){
+        cond_num = m_rules[source].conditions.size();
+        judgeIOFlag = true;
+    }
+    else{
+        return false;
+    }
+
+    IOExceptStatus_t io_except;
+    int target_num = m_rules[source].targets.size();
+    for (int i = 0; i < cond_num; ++i) {
+        Actions_t action;
+        if (judgeConditions(source,i)) {
+            // 初始化本次action
+            action.light = m_rules[source].actions[i].light;
+            action.fun = m_rules[source].actions[i].fun;
+            action.curtain = m_rules[source].actions[i].curtain;
+            // 条件组判断通过后，对期望值做出更改
+            if (action.light == 1) {
+                for (int j = 0; j < target_num; ++j) {
+                    // 如果期望值里没有某ControlNode的期望值，那么新建
+                    if ( m_excepts.count(m_rules[source].targets[j]) )
+                        m_excepts.insert({m_rules[source].targets[j], io_except});
+                    m_excepts[ m_rules[source].targets[j] ].io4 = true;
+                }
+            }
+            if (action.light == 0) {
+                for (int j = 0; j < target_num; ++j) {
+                    // 如果期望值里没有某ControlNode的期望值，那么新建
+                    if ( m_excepts.count(m_rules[source].targets[j]) )
+                        m_excepts.insert({m_rules[source].targets[j], io_except});
+                    m_excepts[ m_rules[source].targets[j] ].io4 = false;
+                }
+            }
+
+            if (action.fun == 1) {
+                for (int j = 0; j < target_num; ++j) {
+                    // 如果期望值里没有某ControlNode的期望值，那么新建
+                    if ( m_excepts.count(m_rules[source].targets[j]) )
+                        m_excepts.insert({m_rules[source].targets[j], io_except});
+                    m_excepts[ m_rules[source].targets[j] ].io5 = true;
+                }
+            }
+            if (action.fun == 0) {
+                for (int j = 0; j < target_num; ++j) {
+                    // 如果期望值里没有某ControlNode的期望值，那么新建
+                    if ( m_excepts.count(m_rules[source].targets[j]) )
+                        m_excepts.insert({m_rules[source].targets[j], io_except});
+                    m_excepts[ m_rules[source].targets[j] ].io5 = false;
+                }
+            }
+
+            if (action.curtain == 1) {
+                for (int j = 0; j < target_num; ++j) {
+                    // 如果期望值里没有某ControlNode的期望值，那么新建
+                    if ( m_excepts.count(m_rules[source].targets[j]) )
+                        m_excepts.insert({m_rules[source].targets[j], io_except});
+                    m_excepts[ m_rules[source].targets[j] ].io9 = true;
+                }
+            }
+            if (action.curtain == 0) {
+                for (int j = 0; j < target_num; ++j) {
+                    // 如果期望值里没有某ControlNode的期望值，那么新建
+                    if ( m_excepts.count(m_rules[source].targets[j]) )
+                        m_excepts.insert({m_rules[source].targets[j], io_except});
+                    m_excepts[ m_rules[source].targets[j] ].io5 = false;
+                }
+            }
+
+        } // end if (judgeConditions(source,i))
+    } // end for (int i = 0; i < cond_num; ++i)
+    return judgeIOFlag;
+}
+
+bool Rules::genCommands(struct sJsonStrConvertor *pSourceJsonStrConvertor, std::vector<std::string> &commands) {
     bool genFlag;
-    std::string source(pSourceJsonStrConvertor->parsedData.devaddr); // 拿到source节点ID
-    std::string command;
+    std::string source(pSourceJsonStrConvertor->parsedData.devaddr);
+    std::stringstream command;
+    std::string target;
     int cond_num;
     if (m_rules.count(source)){
         cond_num = m_rules[source].conditions.size();
         genFlag = true;
     }
     else{
-        genFlag = false;
+        return false;
     }
+
+    int target_num = m_rules[source].targets.size();
+
     for (int i = 0; i < cond_num; ++i) {
+        // 判断是否符合条件
         if (judgeConditions(source,i)){
-            if (m_rules[source].actions[i].light == 1){
-                command.assign("light open"); // TODO 生成真正的规则
-                commands.push_back(command);
-            }
-            if (m_rules[source].actions[i].light == 0){
-                command.assign("light close");
-                commands.push_back(command);
-            }
-            if (m_rules[source].actions[i].light == -1)
-                ;
-            if (m_rules[source].actions[i].fun == 1){
-                command.assign("fun open");
-                commands.push_back(command);
-            }
-            if (m_rules[source].actions[i].fun == 0){
-                command.assign("fun open");
-                commands.push_back(command);
-            }
-            if (m_rules[source].actions[i].fun == -1)
-                ;
-            if (m_rules[source].actions[i].curtain == 1){
-                command.assign("curtain open");
-                commands.push_back(command);
-            }
-            if (m_rules[source].actions[i].curtain == 0){
-                command.assign("curtain open");
-                commands.push_back(command);
-            }
-            if (m_rules[source].actions[i].curtain == -1)
-                ;
-        }
-    }
+            this->judgeIOExcepts(source);
+            std::map<const std::string,std::vector<const char*> > frame;
+            IOExceptStatus_t io_except;
+
+            for (int j = 0; j < target_num; ++j) {
+
+                io_except = m_excepts[ m_rules[source].targets[j] ]; // 拿到期望io
+                target.assign(m_rules[source].targets[j]); // 将接收命令的nodeID取出
+
+                // DB查表，查找目前状态，根据nodeID查找，如果目前无状态，则直接生成命令
+                if (m_db->queryIOStatus(m_rules[source].targets[j], frame)) {
+                    // 拿到目前IO状态，与期望IO对比
+                    JsonStrConvertor_t jsonStrConvertor;
+                    parseNodeUplink(frame["frame"][0],&jsonStrConvertor);
+
+                    if (jsonStrConvertor.parsedData.io4 != io_except.io4) {
+                        command.str(""); // reset string stream
+                        if (io_except.io4 == true){
+                            command << R"({"devaddr":)" << target << R"(, "data":"FA4F",  "confirmed":true, "port":2, "time":"immediately" })";
+                        } else {
+                            command << R"({"devaddr":)" << target << R"(, "data":"FA40",  "confirmed":true, "port":2, "time":"immediately" })";
+                        }
+                        commands.push_back(command.str());
+                        SPDLOG_LOGGER_DEBUG(logger, command.str());
+                    }
+
+                    if (jsonStrConvertor.parsedData.io5 != io_except.io5) {
+                        command.str(""); // reset string stream
+                        if (io_except.io5 == true){
+                            command << R"({"devaddr":)" << target << R"(, "data":"FA5F",  "confirmed":true, "port":2, "time":"immediately" })";
+                        } else {
+                            command << R"({"devaddr":)" << target << R"(, "data":"FA50",  "confirmed":true, "port":2, "time":"immediately" })";
+                        }
+                        commands.push_back(command.str());
+                        SPDLOG_LOGGER_DEBUG(logger, command.str());
+                    }
+
+                    if (jsonStrConvertor.parsedData.io9 != io_except.io9) {
+                        command.str(""); // reset string stream
+                        if (io_except.io9 == true){
+                            command << R"({"devaddr":)" << target << R"(, "data":"FA9F",  "confirmed":true, "port":2, "time":"immediately" })";
+                        } else {
+                            command << R"({"devaddr":)" << target << R"(, "data":"FA90",  "confirmed":true, "port":2, "time":"immediately" })";
+                        }
+                        commands.push_back(command.str());
+                        SPDLOG_LOGGER_DEBUG(logger, command.str());
+                    }
+
+                } else {
+                    // 无状态，则直接通过期望IO生成指令
+                    command.str(""); // reset string stream
+                    if (io_except.io4 == true){
+                        command << R"({"devaddr":)" << target << R"(, "data":"FA4F",  "confirmed":true, "port":2, "time":"immediately" })";
+                    } else {
+                        command << R"({"devaddr":)" << target << R"(, "data":"FA40",  "confirmed":true, "port":2, "time":"immediately" })";
+                    }
+                    commands.push_back(command.str());
+                    SPDLOG_LOGGER_DEBUG(logger, command.str());
+
+                    command.str(""); // reset string stream
+                    if (io_except.io5 == true){
+                        command << R"({"devaddr":)" << target << R"(, "data":"FA5F",  "confirmed":true, "port":2, "time":"immediately" })";
+                    } else {
+                        command << R"({"devaddr":)" << target << R"(, "data":"FA50",  "confirmed":true, "port":2, "time":"immediately" })";
+                    }
+                    commands.push_back(command.str());
+                    SPDLOG_LOGGER_DEBUG(logger, command.str());
+
+                    command.str(""); // reset string stream
+                    if (io_except.io9 == true){
+                        command << R"({"devaddr":)" << target << R"(, "data":"FA9F",  "confirmed":true, "port":2, "time":"immediately" })";
+                    } else {
+                        command << R"({"devaddr":)" << target << R"(, "data":"FA90",  "confirmed":true, "port":2, "time":"immediately" })";
+                    }
+                    commands.push_back(command.str());
+                    SPDLOG_LOGGER_DEBUG(logger, command.str());
+                } // end if (m_db->queryIOStatus(m_rules[source].targets[j], frame))
+            } // end for (int j = 0; j < target_num; ++j)
+        } // end if (judgeConditions(source,i))
+    } // end for (int i = 0; i < cond_num; ++i)
+
     return genFlag;
 }
-
-
 
 
 

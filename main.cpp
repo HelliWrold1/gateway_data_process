@@ -4,9 +4,10 @@
 #include <stdio.h>
 #include "mqtt/mqtt_connector.h"
 #include "json/json_str_convertor.h"
-#include "sql/mariadb_connector.h"
 #include <string.h>
+#include <spdlog/sinks/stdout_color_sinks.h>
 #include "DB.h"
+#define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_TRACE
 
 static const char* g_topic_rcvdata = "uplinkFromNode/#";  // lorawan-server uplink topic
 static const char* g_topic_uplink = "uplinkToCloud";  // uplink to Cloud
@@ -15,13 +16,17 @@ static const char* g_topic_bridgeStatus = "$SYS/broker/connection/raspberrypi.ra
 static const int g_qos = 1;
 
 static DB *db;
-static MariadbConnector_t mariadbConnRecv;
-static MariadbConnector_t mariadbConnSend;
+
+auto logger = spdlog::stdout_color_mt( "logger" );
 
 void eachConnectedCallback(void* context, char* cause);
 int msgArrivedCallback(void* context, char* topicName, int topicLen, MQTTAsync_message *message);
 
 int main() {
+    // set logger
+    logger->set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%l] [%@] [%!]: %v");
+    logger->set_level(spdlog::level::debug);
+
     printf("Hello, World!\n");
     MQTTConnector_t mqttConn;
     initMQTTConnector(&mqttConn);
@@ -35,19 +40,10 @@ int main() {
     startMQTTConnector();
 
     db = DB::getDB();
-    initMariadbConnector(&mariadbConnRecv);
-    initMariadbConnector(&mariadbConnSend);
-    if (connectMariadb(&mariadbConnRecv) != MARIADB_CONNECTOR_SUCCESS)
-    {
-        GW_LOG(LOG_ERROR, "Mariadb connector Recv connection failed");
-        return 1;
-    }
 
-    if (connectMariadb(&mariadbConnSend) != MARIADB_CONNECTOR_SUCCESS)
-    {
-        GW_LOG(LOG_ERROR, "Mariadb connector Send connection failed");
-        return 1;
-    }
+    char jsonfile[] = "../rule/rules.json";
+    std::vector<std::string> commands;
+    Rules* rules = Rules::getRules(jsonfile);
 
     while(1){ }
 
@@ -59,14 +55,14 @@ void eachConnectedCallback(void* context, char* cause)
 {
     connectorSubscribe(g_topic_rcvdata,g_qos);
     connectorSubscribe(g_topic_bridgeStatus,g_qos);
-    GW_LOG(LOG_DEBUG,"Connection successful.\n");
+    SPDLOG_LOGGER_DEBUG(logger, "Connection successful.");
 }
 
 int msgArrivedCallback(void* context, char* topicName, int topicLen, MQTTAsync_message *message) //接收数据回调
 {
     char* payload = (char*)message->payload;
-    GW_LOG(LOG_DEBUG,"Message arrived:\n");
-    GW_LOG(LOG_DEBUG,"topic: %s\tpayload: '%s'\t payloadlength:%d\n\n", topicName, (char *) message->payload,
+    SPDLOG_LOGGER_DEBUG(logger, "Message arrived:");
+    SPDLOG_LOGGER_DEBUG(logger, "topic: %s\tpayload: '%s'\t payloadlength:%d\n\n", topicName, (char *) message->payload,
            message->payloadlen);
     if (strstr(topicName,"uplinkFromNode/B827EBFFFE2114B5"))
     {
@@ -79,13 +75,13 @@ int msgArrivedCallback(void* context, char* topicName, int topicLen, MQTTAsync_m
         // TODO 根据配置文件判断规则
         char buf[80];
         printf("pwd: %s\n",getcwd(buf,sizeof buf));
-        char jsonfile[] = "../rule/rules.json";
+
         std::vector<std::string> commands;
-        Rules* rules = Rules::getRules(jsonfile);
+        Rules* rules = Rules::getRules();
         rules->setSourceData(&jsonStrConvertor);
         bool genFlag = rules->genCommands(&jsonStrConvertor,commands); // 将源数据读入到rule对象中，生成指令
         if (genFlag == false)
-            GW_LOG(LOG_DEBUG,"gen %s 's command false",jsonStrConvertor.parsedData.devaddr);
+            SPDLOG_LOGGER_DEBUG(logger, "gen %s 's command false",jsonStrConvertor.parsedData.devaddr);
         for (int j = 0; j < commands.size(); ++j) {
             std::cout<<commands[j]<<std::endl;
         }

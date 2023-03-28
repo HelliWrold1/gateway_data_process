@@ -4,15 +4,17 @@
 
 #include "mysql_pool.h"
 
+static auto logger = spdlog::get("logger");
+
 MysqlPool* MysqlPool::mysqlpool_object = NULL;
 std::mutex MysqlPool::objectlock;
 std::mutex MysqlPool::poollock;
 
 MysqlPool::MysqlPool() {
     if (0 == mysql_library_init(0, NULL, NULL))
-        std::cout << "mysql_library_init()succeed" << std::endl;
+        SPDLOG_LOGGER_DEBUG(logger,"mysql_library_init()succeed");
     else
-        std::cout << "mysql_library_init()failed" << std::endl;
+        SPDLOG_LOGGER_ERROR(logger,"mysql_library_init()failed");
     connect_count = 0;
 }
 
@@ -41,9 +43,9 @@ void MysqlPool::setParameter( const char*   mysqlhost,
  *有参的单例函数，用于第一次获取连接池对象，初始化数据库信息。
  */
 MysqlPool* MysqlPool::getMysqlPoolObject() {
-    if (mysqlpool_object == NULL) {
+    if (mysqlpool_object == nullptr) {
         objectlock.lock();
-        if (mysqlpool_object == NULL) {
+        if (mysqlpool_object == nullptr) {
             mysqlpool_object = new MysqlPool();
         }
         objectlock.unlock();
@@ -69,11 +71,11 @@ MYSQL* MysqlPool::createOneConnect() {
             connect_count++;
             return conn;
         } else {
-            std::cout << mysql_error(conn) << std::endl;
+            SPDLOG_LOGGER_ERROR(logger,mysql_error(conn));
             return NULL;
         }
     } else {
-        std::cerr << "init failed" << std::endl;
+        SPDLOG_LOGGER_ERROR(logger,"mysql conn init failed");
         return NULL;
     }
 }
@@ -125,13 +127,13 @@ MYSQL* MysqlPool::getOneConnect() {
             if (connect_count < MAX_CONNECT)
                 conn = createOneConnect();
             else
-                std::cerr << "the number of mysql connections is too much!" << std::endl;
+                SPDLOG_LOGGER_ERROR(logger,"the number of mysql connections is too much!");
         }
     } else {
         if (connect_count < MAX_CONNECT)
             conn = createOneConnect();
         else
-            std::cerr << "the number of mysql connections is too much!" << std::endl;
+            SPDLOG_LOGGER_ERROR(logger,"the number of mysql connections is too much!");
     }
     poollock.unlock();
     return conn;
@@ -153,7 +155,7 @@ void MysqlPool::close(MYSQL* conn) {
  * 返回对象用map主要考虑，用户可以通过数据库字段，直接获得查询的字。
  * 例如：m["字段"][index]。
  */
-std::map<const std::string,std::vector<const char*> >  MysqlPool::readSql(const char* sql) {
+std::map< const std::string, std::vector<const char*> >  MysqlPool::readSql(const char* sql) {
     MYSQL* conn = getOneConnect();
     std::map<const std::string,std::vector<const char*> > results;
     if (conn) {
@@ -173,20 +175,18 @@ std::map<const std::string,std::vector<const char*> >  MysqlPool::readSql(const 
                     }
                 }
                 mysql_free_result(res);
-                GW_LOG(LOG_DEBUG,"[DB]: %s", sql);
+                SPDLOG_LOGGER_DEBUG(logger,"[DB]: {}", sql);
             } else {
                 if (mysql_field_count(conn) != 0)
-                    GW_LOG(LOG_ERROR,"[DB]: %s", mysql_error(conn));
-//                    std::cerr << mysql_error(conn) << std::endl;
+                    SPDLOG_LOGGER_ERROR(logger,"[DB]: {}", mysql_error(conn));
             }
         } else {
-            GW_LOG(LOG_ERROR,"[DB]: %s", mysql_error(conn));
-//            std::cerr << mysql_error(conn) <<std::endl;
+            SPDLOG_LOGGER_ERROR(logger,"[DB]: {}", mysql_error(conn));
+            SPDLOG_LOGGER_ERROR(logger,"[DB]: {}", sql);
         }
         close(conn);
     } else {
-        GW_LOG(LOG_ERROR,"[DB]: %s", mysql_error(conn));
-//        std::cerr << mysql_error(conn) << std::endl;
+        SPDLOG_LOGGER_ERROR(logger,"[DB]: {}", mysql_error(conn));
     }
     return results;
 }
@@ -201,14 +201,14 @@ int MysqlPool::createSql(const char* sql){
     int auto_id;
     if (conn) {
         if (mysql_query(conn,sql) == 0) {
-            GW_LOG(LOG_DEBUG,"[DB]: %s", sql);
+            SPDLOG_LOGGER_DEBUG(logger,"[DB]: {}", sql);
         }
         else{
-            GW_LOG(LOG_ERROR,"[DB]: %s", mysql_error(conn));
-            GW_LOG(LOG_INFO,"[DB]: %s", sql);
+            SPDLOG_LOGGER_ERROR(logger,"[DB]: {}", mysql_error(conn));
+            SPDLOG_LOGGER_INFO(logger,"[DB]: {}", sql);
         }
         if (mysql_query(conn,"SELECT LAST_INSERT_ID();") == 0){
-            GW_LOG(LOG_DEBUG,"[DB]: %s", sql);
+            SPDLOG_LOGGER_DEBUG(logger,"[DB]: {}", sql);
             MYSQL_RES *res = mysql_store_result(conn);
             MYSQL_ROW row;
             row = mysql_fetch_row(res);
@@ -218,8 +218,8 @@ int MysqlPool::createSql(const char* sql){
         }
         else
         {
-            GW_LOG(LOG_ERROR,"[DB]: %s", mysql_error(conn));
-            GW_LOG(LOG_INFO,"[DB]: %s", sql);
+            SPDLOG_LOGGER_ERROR(logger,"[DB]: {}", mysql_error(conn));
+            SPDLOG_LOGGER_INFO(logger,"[DB]: {}", sql);
         }
         close(conn);
         return 0;
@@ -232,11 +232,11 @@ bool MysqlPool::migrateSql(const char* sql)
     MYSQL* conn = getOneConnect();
     if (conn) {
         if (mysql_query(conn, sql) == 0) {
-            GW_LOG(LOG_DEBUG, "[DB]: %s", sql);
+            SPDLOG_LOGGER_DEBUG(logger, "[DB]:{}", sql);
             return true;
         } else {
-            GW_LOG(LOG_ERROR, "[DB]: %s", mysql_error(conn));
-            GW_LOG(LOG_INFO,"[DB]: %s", sql);
+            SPDLOG_LOGGER_ERROR(logger, "[DB]: {}", mysql_error(conn));
+            SPDLOG_LOGGER_INFO(logger,"[DB]: {}", sql);
             close(conn);
             return false;
         }

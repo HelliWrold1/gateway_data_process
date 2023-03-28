@@ -1,5 +1,7 @@
 project(rule)
 
+set(CMAKE_CXX_STANDARD 11)
+
 set(HEADER_FILES
         rule.h
         )

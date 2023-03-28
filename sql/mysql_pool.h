@@ -9,6 +9,8 @@
 #ifndef MYSQLPOOL_H
 #define MYSQLPOOL_H
 
+#define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_TRACE
+
 #include<iostream>
 #include<mysql/mysql.h>
 #include<queue>
@@ -18,8 +20,7 @@
 #include<string>
 #include<mutex>
 #include<thread>
-#include "log.h"
-
+#include <spdlog/spdlog.h>
 
 
 class MysqlPool {

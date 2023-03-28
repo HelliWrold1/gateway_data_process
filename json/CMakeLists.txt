@@ -1,5 +1,7 @@
 project(log)
 
+set(CMAKE_CXX_STANDARD 11)
+
 set(HEADER_FILES
         json_str_convertor.h
         )

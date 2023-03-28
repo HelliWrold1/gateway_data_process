@@ -6,13 +6,15 @@
 #define GATEWAY_DATA_PROCESS_JSON_STR_CONVERTOR_H
 
 #define _XOPEN_SOURCE
+#define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_TRACE
+
 #include <time.h>
 #include "cjson/cJSON.h"
 #include <stdlib.h>
 #include <string.h>
 #include <malloc.h>
 #include <errno.h>
-#include "log.h"
+#include "spdlog/spdlog.h"
 #include "rule.h"
 
 typedef enum
@@ -75,7 +77,7 @@ typedef struct sJsonStrConvertor{
     char * str;
 }JsonStrConvertor_t;
 
-int parseNodeUplink(char* buffer, JsonStrConvertor_t* pJsonConvertor);
+int parseNodeUplink(const char* buffer, JsonStrConvertor_t* pJsonConvertor);
 
 void deleteParsedNodeUplink(JsonStrConvertor_t* pJsonConvertor);
 

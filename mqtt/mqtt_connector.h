@@ -5,15 +5,13 @@
 #ifndef GATEWAY_DATA_PROCESS_MQTT_CONNECTOR_H
 #define GATEWAY_DATA_PROCESS_MQTT_CONNECTOR_H
 
-#if defined(__cplusplus)
-extern "C" {
-#endif
+#define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_TRACE
 
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
 #include "MQTTAsync.h"
-#include "log.h"
+#include "spdlog/spdlog.h"
 
 typedef enum {
     MQTT_CONNECTOR_SUCCESS,
@@ -158,9 +156,5 @@ int defaultMsgArrived(void *context, char *topicName, int topicLen, MQTTAsync_me
  * @param token
  */
 void defaultDelivered(void *context, MQTTAsync_token token);
-
-#if defined(__cplusplus)
-}
-#endif
 
 #endif //GATEWAY_DATA_PROCESS_MQTT_CONNECTOR_H

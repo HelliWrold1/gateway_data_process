@@ -4,7 +4,9 @@
 
 #include "json_str_convertor.h"
 
-int parseNodeUplink(char *buffer, JsonStrConvertor_t *pJsonConvertor) {
+static auto logger = spdlog::get("logger");
+
+int parseNodeUplink(const char *buffer, JsonStrConvertor_t *pJsonConvertor) {
     cJSON *json;
 
     if ((json = cJSON_Parse(buffer)) == NULL) {
@@ -20,7 +22,7 @@ int parseNodeUplink(char *buffer, JsonStrConvertor_t *pJsonConvertor) {
     datatype = cJSON_GetObjectItem(json, "datatype")->valueint;
 
     char *key[KEY_LINE][KEY_RANK] = {
-            {"temp",  "humi",  "lux",   "co",    "co2",   "h2s",   "nh3"},
+            {"nh3",  "h2s",  "co",   "co2",    "humi",   "temp",   "lux"},
             {"io4",   "io5",   "io8",   "io9",   "io11",  "io14",  "io15"},
             {"data1", "data2", "data3", "data4", "data5", "data6", "data7"},
             {"desc",  "codr",  "datr",  "freq",  "lsnr",  "port",  "rssi"},
@@ -60,7 +62,7 @@ int parseNodeUplink(char *buffer, JsonStrConvertor_t *pJsonConvertor) {
 
     // 转换UTC时间，将localtime加入到json对象中
     char localTimeStr[20];
-    GW_LOG(LOG_DEBUG, cJSON_GetObjectItem(json, "datetime")->valuestring);
+    SPDLOG_LOGGER_DEBUG(logger, cJSON_GetObjectItem(json, "datetime")->valuestring);
     strptime(cJSON_GetObjectItem(json, "datetime")->valuestring, "%Y-%m-%dT%H:%M:%SZ", &time);
     timestamp += mktime(&time);
     if (!localtime_r(&timestamp, &time))
@@ -84,7 +86,7 @@ int parseNodeUplink(char *buffer, JsonStrConvertor_t *pJsonConvertor) {
     pJsonConvertor->json = json;
     pJsonConvertor->str = cJSON_Print(json);
 
-    GW_LOG(LOG_DEBUG, pJsonConvertor->str);
+    SPDLOG_LOGGER_DEBUG(logger, pJsonConvertor->str);
 
     return JSON_SUCCESS;
 }
@@ -121,7 +123,7 @@ int parseRuleFile(const char *filename, struct sParsedJsonRule *pJsonRule)
     fclose(fp);
     json_str[file_size] = '\0';
 
-    GW_LOG(LOG_DEBUG,json_str);
+    SPDLOG_LOGGER_DEBUG(logger, json_str);
 
     // 解析文件内容
     cJSON *json;
@@ -209,13 +211,13 @@ void deleteParsedNodeUplink(JsonStrConvertor_t *pJsonConvertor) {
 }
 
 void fillParsedSensorData(JsonStrConvertor_t *pJsonConvertor, cJSON *json, char *key[KEY_LINE][KEY_RANK]) {
-    pJsonConvertor->parsedData.temp = cJSON_GetObjectItem(json, key[DATA_LINE][0])->valueint;
-    pJsonConvertor->parsedData.humi = cJSON_GetObjectItem(json, key[DATA_LINE][1])->valueint;
-    pJsonConvertor->parsedData.lux = cJSON_GetObjectItem(json, key[DATA_LINE][2])->valueint;
-    pJsonConvertor->parsedData.co = cJSON_GetObjectItem(json, key[DATA_LINE][3])->valueint;
-    pJsonConvertor->parsedData.co2 = cJSON_GetObjectItem(json, key[DATA_LINE][4])->valueint;
-    pJsonConvertor->parsedData.h2s = cJSON_GetObjectItem(json, key[DATA_LINE][5])->valueint;
-    pJsonConvertor->parsedData.nh3 = cJSON_GetObjectItem(json, key[DATA_LINE][6])->valueint;
+    pJsonConvertor->parsedData.nh3 = cJSON_GetObjectItem(json, key[DATA_LINE][0])->valuedouble;
+    pJsonConvertor->parsedData.h2s = cJSON_GetObjectItem(json, key[DATA_LINE][1])->valuedouble;
+    pJsonConvertor->parsedData.co = cJSON_GetObjectItem(json, key[DATA_LINE][2])->valuedouble;
+    pJsonConvertor->parsedData.co2 = cJSON_GetObjectItem(json, key[DATA_LINE][3])->valuedouble;
+    pJsonConvertor->parsedData.humi = cJSON_GetObjectItem(json, key[DATA_LINE][4])->valuedouble / 10;
+    pJsonConvertor->parsedData.temp = cJSON_GetObjectItem(json, key[DATA_LINE][5])->valuedouble / 10;
+    pJsonConvertor->parsedData.lux = cJSON_GetObjectItem(json, key[DATA_LINE][6])->valuedouble / 100;
 }
 
 void fillParsedControlData(JsonStrConvertor_t *pJsonConvertor, cJSON *json, char *key[KEY_LINE][KEY_RANK]) {

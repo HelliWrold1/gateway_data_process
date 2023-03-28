@@ -3,6 +3,7 @@
  */
 #include "mqtt_connector.h"
 
+static auto logger = spdlog::get("logger");
 static MQTTConnector_t *pMQTTConnector;
 
 void initMQTTConnector(MQTTConnector_t *initMQTTConnector)
@@ -89,12 +90,12 @@ int connectorSubscribe(const char* topic, int qos)
         opts.onFailure = defaultOnFailureSubscribe;
     if ((rc = MQTTAsync_subscribe(pMQTTConnector->client, topic, qos, &opts)) != MQTTASYNC_SUCCESS) //尝试订阅主题
     {
-        GW_LOG(LOG_ERROR,"Failed to subscribe topic '%s' , error code:%d\n",topic, rc);
+        SPDLOG_LOGGER_ERROR(logger,"Failed to subscribe topic '{}' , error code:{}\n",topic, rc);
         return MQTT_CONNECTOR_SUBSCRIBE_FAILURE;
     }
     else
     {
-        GW_LOG(LOG_DEBUG,"Succeed in subscribing topic '%s' , error code:%d\n",topic, rc);
+        SPDLOG_LOGGER_DEBUG(logger,"Succeed in subscribing topic '{}' , error code:{}\n",topic, rc);
         return MQTT_CONNECTOR_SUCCESS;
     }
 }
@@ -108,53 +109,53 @@ int connectorPublish(const char* topic, const char *payload, int qos)
     pubmsg.payload = (void*)payload;
     pubmsg.payloadlen = (int)strlen(payload);
     pubmsg.qos = qos;
-    GW_LOG(LOG_DEBUG,"Sending:'%s'\n",(char*)pubmsg.payload);
+    SPDLOG_LOGGER_DEBUG(logger,"Sending:'%s'\n",(char*)pubmsg.payload);
     if ((rc = MQTTAsync_sendMessage(pMQTTConnector->client, topic, &pubmsg, &opts)) != MQTTASYNC_SUCCESS)
     {
-        GW_LOG(LOG_ERROR,"Failed to send message: '%s' , error code:%d\n", (char *)pubmsg.payload, rc);
+        SPDLOG_LOGGER_ERROR(logger,"Failed to send message: '{}' , error code:{}\n", (char *)pubmsg.payload, rc);
         return MQTT_CONNECTOR_PUBLISH_FAILURE;
     }
     else
     {
-        GW_LOG(LOG_DEBUG,"Succeed in sending message: '%s' , error code: %d\n", (char *)pubmsg.payload, rc);
+        SPDLOG_LOGGER_DEBUG(logger,"Succeed in sending message: '{}' , error code: {}\n", (char *)pubmsg.payload, rc);
         return MQTT_CONNECTOR_SUCCESS;
     }
 }
 
 void defaultOnSuccessConnected(void* context, MQTTAsync_successData* response)
 {
-    GW_LOG(LOG_DEBUG,"successConnected Message with token value %d delivery confirmed\n", response->token);
+    SPDLOG_LOGGER_DEBUG(logger,"successConnected Message with token value {} delivery confirmed\n", response->token);
 }
 
 void defaultOnConnectedCallBack(void* context, char* cause)
 {
-    GW_LOG(LOG_DEBUG,"Connection successful.\n");
+    SPDLOG_LOGGER_DEBUG(logger,"Connection successful.");
 }
 
 void defaultOnConnectFailure(void* context, MQTTAsync_failureData* response)
 {
-    GW_LOG(LOG_DEBUG,"Connection fail, error code: %d, error message:%s\n", response ? response->code : 0, response ? response->message : 0);
+    SPDLOG_LOGGER_DEBUG(logger,"Connection fail, error code: %d, error message:{}", response ? response->code : 0, response ? response->message : 0);
 }
 
 void defaultConnLost(void* context, char* cause)
 {
-    GW_LOG(LOG_DEBUG,"Disconnected, cause: %s\n", cause);
+    SPDLOG_LOGGER_DEBUG(logger,"Disconnected, cause: {}", cause);
 }
 
 void defaultOnSuccessSubscribe(void* context, MQTTAsync_successData* response)
 {
-    GW_LOG(LOG_DEBUG,"Subscribe successful. Message with token value %d delivery confirmed\n", response->token);
+    SPDLOG_LOGGER_DEBUG(logger,"Subscribe successful. Message with token value {} delivery confirmed", response->token);
 }
 
 void defaultOnFailureSubscribe(void* context, MQTTAsync_failureData* response)
 {
-    GW_LOG(LOG_DEBUG,"Subscribe failed. Message with token value %d delivery confirmed\n", response->token);
+    SPDLOG_LOGGER_DEBUG(logger,"Subscribe failed. Message with token value {} delivery confirmed", response->token);
 }
 
 int defaultMsgArrived(void* context, char* topicName, int topicLen, MQTTAsync_message *message) //接收数据回调
 {
-    GW_LOG(LOG_DEBUG,"Message arrived:\n");
-    GW_LOG(LOG_DEBUG,"topic: %s\tpayload: '%s'\t payloadlength:%d\n\n", topicName, (char *) message->payload,
+    SPDLOG_LOGGER_DEBUG(logger,"Message arrived:\n");
+    SPDLOG_LOGGER_DEBUG(logger,"topic: {}\tpayload: '{}'\t payloadlength:{}\n\n", topicName, (char *) message->payload,
            message->payloadlen);
     MQTTAsync_freeMessage(&message);
     MQTTAsync_free(topicName);
@@ -164,6 +165,6 @@ int defaultMsgArrived(void* context, char* topicName, int topicLen, MQTTAsync_me
 
 void defaultDelivered(void* context, MQTTAsync_token token)
 {
-    GW_LOG(LOG_DEBUG,"Message with token value %d delivery confirmed\n", token);
+    SPDLOG_LOGGER_DEBUG(logger,"Message with token value {} delivery confirmed\n", token);
 }
 

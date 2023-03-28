@@ -1,69 +1,86 @@
 /*
  * Created by HelliWrold1 on 2023/1/30 21:24.
  */
-#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
+#define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_TRACE
+#include <spdlog/sinks/stdout_color_sinks.h>
 #include "doctest.h"
-#include "mariadb_connector.h"
+#include "DB.h"
 
-TEST_CASE("connectMariadbSuccess")
+/**
+ * Before run this example, create database test and drop table test.cmd and test.data. mysql username=root password=root
+ */
+TEST_CASE("TEST DB")
 {
-    MariadbConnector_t mariadbConn;
-    initMariadbConnector(&mariadbConn);
-    mariadbConn.table = "AD123";
-    CHECK(MARIADB_CONNECTOR_SUCCESS == connectMariadb(&mariadbConn));
-    SUBCASE("mariadbCreateTableSuccess")
+    // set log
+    auto logger  = spdlog::get("logger");
+//    logger->set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%l] [%@] [%!]: %v");
+    logger->set_level(spdlog::level::debug);
+    // get db
+    DB* db = DB::getDB();
+    int id;
+    bool queryFlag;
+    std::string devaddr("B54E453C");
+    std::map<const std::string,std::vector<const char*> > frame;
+
+    SUBCASE("test insert data")
     {
-        CHECK(MARIADB_CONNECTOR_SUCCESS == mariadbCreateTable(&mariadbConn));
-    }
-//    SUBCASE("mariadbCreateTableFailure")
-//    {
-//        CHECK(MARIADB_CONNECTOR_CONNECT_FAILURE == mariadbCreateTable(&mariadbConn));
-//    }
-    SUBCASE("mariadbInsertRecordSuccess")
-    {
-        CHECK(MARIADB_CONNECTOR_SUCCESS == mariadbInsertRecord(&mariadbConn,
-                                                                    "{"
-                                                                     "    \"app\": \"Raspiber-handler\","
-                                                                     "    \"battery\": 0,"
-                                                                     "    \"codr\": \"4/5\","
-                                                                     "    \"data\": \"0012345678901234\","
-                                                                     "    \"data1\": 18,"
-                                                                     "    \"data2\": 52,"
-                                                                     "    \"data3\": 86,"
-                                                                     "    \"data4\": 120,"
-                                                                     "    \"data5\": 144,"
-                                                                     "    \"data6\": 18,"
-                                                                     "    \"data7\": 52,"
-                                                                     "    \"datatype\": 0,"
-                                                                     "    \"datetime\": \"2023-01-27T18:14:02Z\","
-                                                                     "    \"datr\": \"SF12BW125\","
-                                                                     "    \"desc\": \"ABP-Ra-08-Control\","
-                                                                     "    \"devaddr\": \"67678D5E\","
-                                                                     "    \"fcnt\": 1,"
-                                                                     "    \"freq\": 474.9,"
-                                                                     "    \"lsnr\": -11.2,"
-                                                                     "    \"mac\": \"B827EBFFFE2114B5\","
-                                                                     "    \"port\": 2,"
-                                                                     "    \"rssi\": -115"
-                                                                     "}", 0));
-    }
-    SUBCASE("mariadbQueryRecordSuccess")
-    {
-        MariadbQueryResult_t mariadbRes;
-        initMariadbQueryResult(&mariadbRes);
-        CHECK(MARIADB_CONNECTOR_SUCCESS == mariadbQueryRecord(&mariadbConn,&mariadbRes));
-        SUBCASE("mariadbReplaceTableSuccess")
-        {
-            CHECK(MARIADB_CONNECTOR_SUCCESS == mariadbReplaceTable(&mariadbConn,&mariadbRes));
-        }
+        id = db->insertData(R"({
+      "app": "Raspiber-handler",
+      "battery": 0,
+      "codr": "4/5",
+      "data": "0000210020001402EF014000C9001D9F",
+      "data1": 33,
+      "data2": 32,
+      "data3": 20,
+      "data4": 751,
+      "data5": 320,
+      "data6": 201,
+      "data7": 7583,
+      "datatype": 0,
+      "datetime": "2023-03-26T06:15:29Z",
+      "datr": "SF10BW125",
+      "desc": "Collection",
+      "devaddr": "3EB4A376",
+      "fcnt": 108,
+      "freq": 474.5,
+      "lsnr": -7.5,
+      "mac": "B827EBFFFE2114B5",
+      "port": 2,
+      "rssi": -107
+    })",1);
+        CHECK(id != 0);
+        db->insertCmd(id,R"('{"devaddr":"B54E453C", "data":"FA5F",  "confirmed":true, "port":2, "time":"immediately" }')");
     }
 
-}
-
-TEST_CASE("connectMariadbFailure")
-{
-    MariadbConnector_t mariadbConn;
-    initMariadbConnector(&mariadbConn);
-    mariadbConn.connInfo.ip = "192.0.0.1";
-    CHECK(MARIADB_CONNECTOR_CONNECT_FAILURE == connectMariadb(&mariadbConn));
+    SUBCASE("test query data")
+    {
+        queryFlag = db->queryIOStatus("B54E453C",frame);
+        CHECK(queryFlag == false);
+        db->insertData(R"({
+          "app": "Raspiber-handler",
+          "battery": 0,
+          "codr": "4/5",
+          "data": "01000000000000000000000000000000",
+          "data1": 0,
+          "data2": 0,
+          "data3": 0,
+          "data4": 0,
+          "data5": 0,
+          "data6": 0,
+          "data7": 0,
+          "datatype": 1,
+          "datetime": "2023-03-26T06:17:26Z",
+          "datr": "SF12BW125",
+          "desc": "Control",
+          "devaddr": "B54E453C",
+          "fcnt": 0,
+          "freq": 474.9,
+          "lsnr": -12.2,
+          "mac": "B827EBFFFE2114B5",
+          "port": 2,
+          "rssi": -109
+        })",1);
+        queryFlag = db->queryIOStatus("B54E453C",frame);
+        CHECK(queryFlag == true);
+    }
 }
