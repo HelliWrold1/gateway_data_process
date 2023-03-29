@@ -41,18 +41,34 @@ typedef enum
     TYPE_INTERVAL_TIME_DATA = 0x1E,
 }DATA_TYPE;
 
-typedef struct sJsonStrConvertor{
-    const cJSON * json;
+class JsonStrConvertor{
+
+public:
+    JsonStrConvertor();
+    JsonStrConvertor(const char* buffer);
+    ~JsonStrConvertor();
+    int parseNodeUplink();
+    int parseNodeUplink(const char *buffer);
+    int parseRuleFile(const char *filename, struct sParsedJsonRule *pJsonRule);
+private:
+    void fillParsedSensorData(char *key[KEY_LINE][KEY_RANK]);
+    void fillParsedControlData(char *key[KEY_LINE][KEY_RANK]);
+    void fillParsedCommonData();
+    void fillParsedDBSensorData(char *(*key)[7]);
+    void fillParsedDBControlData(char *(*key)[7]);
+    void fillParsedDBIntervalTimeData();
+public:
+    cJSON * json = nullptr;
     struct
     {
-        const char * app;
+        const char * app = nullptr;
         int battery;
-        const char *data;
+        const char *data = nullptr;
         int datatype;
-        const char *datetime;
-        const char *devaddr;
+        const char *datetime = nullptr;
+        const char *devaddr = nullptr;
         int fcnt;
-        const char *mac;
+        const char *mac = nullptr;
 
         double temp;
         double humi;
@@ -70,23 +86,10 @@ typedef struct sJsonStrConvertor{
         int io14;
         int io15;
 
-        const char * intervaltime;
-
-        const char* localtime;
+        const char * intervaltime = nullptr;
+        const char* localtime = nullptr;
     }parsedData;
-    char * str;
-}JsonStrConvertor_t;
-
-int parseNodeUplink(const char* buffer, JsonStrConvertor_t* pJsonConvertor);
-
-void deleteParsedNodeUplink(JsonStrConvertor_t* pJsonConvertor);
-
-void fillParsedSensorData(JsonStrConvertor_t *pJsonConvertor, cJSON *json,  char *key[KEY_LINE][KEY_RANK]);
-
-void fillParsedControlData(JsonStrConvertor_t *pJsonConvertor, cJSON *json,  char *key[KEY_LINE][KEY_RANK]);
-
-void fillParsedCommonData(JsonStrConvertor_t *pJsonConvertor, cJSON *json);
-
-int parseRuleFile(const char *filename, struct sParsedJsonRule *pJsonRule);
+    char * str = nullptr;
+};
 
 #endif //GATEWAY_DATA_PROCESS_JSON_STR_CONVERTOR_H

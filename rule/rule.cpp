@@ -120,8 +120,9 @@ void Rules::judgeAction(int &device,std::string &device_str, int &cmd_index)
  * @return 返回单例对象
  */
 Rules* Rules::getRules(char* jsonFilePath) {
+    JsonStrConvertor * pJsonStrConvertor = new JsonStrConvertor();
     ParsedJsonRule_t parsedJsonRule;
-    if (!parseRuleFile(jsonFilePath,&parsedJsonRule)){
+    if (!pJsonStrConvertor->parseRuleFile(jsonFilePath,&parsedJsonRule)){
         m_json_rules = parsedJsonRule;
     }
 //    m_json_rules = rules;
@@ -213,7 +214,7 @@ bool Rules::judgeLtRange(double &source, double &lt_range, bool &action_flag) {
  * 将传感器数据读入到rule对象中
  * @param pJsonStrConvertor
  */
-void Rules::setSourceData(struct sJsonStrConvertor *pJsonStrConvertor) {
+void Rules::setSourceData(JsonStrConvertor *pJsonStrConvertor) {
     m_datatype = pJsonStrConvertor->parsedData.datatype;
     if (m_datatype == 0x00){
         m_sensor_data.temp = pJsonStrConvertor->parsedData.temp;
@@ -324,7 +325,7 @@ bool Rules::judgeIOExcepts(std::string &source) {
     return judgeIOFlag;
 }
 
-bool Rules::genCommands(struct sJsonStrConvertor *pSourceJsonStrConvertor, std::vector<std::string> &commands) {
+bool Rules::genCommands(JsonStrConvertor *pSourceJsonStrConvertor, std::vector<std::string> &commands) {
     bool genFlag;
     std::string source(pSourceJsonStrConvertor->parsedData.devaddr);
     std::stringstream command;
@@ -355,10 +356,11 @@ bool Rules::genCommands(struct sJsonStrConvertor *pSourceJsonStrConvertor, std::
                 // DB查表，查找目前状态，根据nodeID查找，如果目前无状态，则直接生成命令
                 if (m_db->queryIOStatus(m_rules[source].targets[j], frame)) {
                     // 拿到目前IO状态，与期望IO对比
-                    JsonStrConvertor_t jsonStrConvertor;
-                    parseNodeUplink(frame["frame"][0],&jsonStrConvertor);
+                    JsonStrConvertor *pJsonStrConvertor = new JsonStrConvertor();
+                    const char *io_status_str = frame["frame"][0];
+                    pJsonStrConvertor->parseNodeUplink(io_status_str);
 
-                    if (jsonStrConvertor.parsedData.io4 != io_except.io4) {
+                    if (pJsonStrConvertor->parsedData.io4 != io_except.io4) {
                         command.str(""); // reset string stream
                         if (io_except.io4 == true){
                             command << R"({"devaddr":)" << target << R"(, "data":"FA4F",  "confirmed":true, "port":2, "time":"immediately" })";
@@ -369,7 +371,7 @@ bool Rules::genCommands(struct sJsonStrConvertor *pSourceJsonStrConvertor, std::
                         SPDLOG_LOGGER_DEBUG(logger, command.str());
                     }
 
-                    if (jsonStrConvertor.parsedData.io5 != io_except.io5) {
+                    if (pJsonStrConvertor->parsedData.io5 != io_except.io5) {
                         command.str(""); // reset string stream
                         if (io_except.io5 == true){
                             command << R"({"devaddr":)" << target << R"(, "data":"FA5F",  "confirmed":true, "port":2, "time":"immediately" })";
@@ -380,7 +382,7 @@ bool Rules::genCommands(struct sJsonStrConvertor *pSourceJsonStrConvertor, std::
                         SPDLOG_LOGGER_DEBUG(logger, command.str());
                     }
 
-                    if (jsonStrConvertor.parsedData.io9 != io_except.io9) {
+                    if (pJsonStrConvertor->parsedData.io9 != io_except.io9) {
                         command.str(""); // reset string stream
                         if (io_except.io9 == true){
                             command << R"({"devaddr":)" << target << R"(, "data":"FA9F",  "confirmed":true, "port":2, "time":"immediately" })";
@@ -390,7 +392,7 @@ bool Rules::genCommands(struct sJsonStrConvertor *pSourceJsonStrConvertor, std::
                         commands.push_back(command.str());
                         SPDLOG_LOGGER_DEBUG(logger, command.str());
                     }
-
+                    delete pJsonStrConvertor;
                 } else {
                     // 无状态，则直接通过期望IO生成指令
                     command.str(""); // reset string stream

@@ -17,6 +17,9 @@
 #include "DB.h"
 #include <unistd.h>
 
+class JsonStrConvertor;
+class DB;
+
 typedef struct sRulesMap{
 public:
     std::string source; // "007E1"
@@ -99,9 +102,9 @@ public:
     static Rules* getRules();
     static void setRule();
     static Rules* getRules(char* jsonFilePath);
-    void setSourceData(struct sJsonStrConvertor* pJsonStrConvertor);
+    void setSourceData(JsonStrConvertor *pJsonStrConvertor);
     bool judgeIOExcepts(std::string &source);
-    bool genCommands(struct sJsonStrConvertor *pSourceJsonStrConvertor, std::vector<std::string> &commands);
+    bool genCommands(JsonStrConvertor *pSourceJsonStrConvertor, std::vector<std::string> &commands);
 private:
     Rules();
     static void judgeAction(int &device, std::string &action, int &cmd_index);
@@ -113,7 +116,7 @@ private:
     int m_datatype;
     SensorData_t m_sensor_data;
     ControlData_t m_control_data;
-    IOExceptStatus_t m_io_status;
+    IOExceptStatus_t m_io_status; // TODO 重发命令的关键成员
     static int m_rules_num;
     static int m_rules_index;
     static std::map<const std::string ,Rule_t> m_rules;

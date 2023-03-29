@@ -1,6 +1,7 @@
 /*
  * Created by HelliWrold1 on 2023/1/30 21:24.
  */
+#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_TRACE
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include "doctest.h"
@@ -13,7 +14,7 @@ TEST_CASE("TEST DB")
 {
     // set log
     auto logger  = spdlog::get("logger");
-//    logger->set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%l] [%@] [%!]: %v");
+    logger->set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%l] [%@] [%!]: %v");
     logger->set_level(spdlog::level::debug);
     // get db
     DB* db = DB::getDB();
@@ -21,10 +22,7 @@ TEST_CASE("TEST DB")
     bool queryFlag;
     std::string devaddr("B54E453C");
     std::map<const std::string,std::vector<const char*> > frame;
-
-    SUBCASE("test insert data")
-    {
-        id = db->insertData(R"({
+    char sensor_data[] = R"({
       "app": "Raspiber-handler",
       "battery": 0,
       "codr": "4/5",
@@ -47,16 +45,47 @@ TEST_CASE("TEST DB")
       "mac": "B827EBFFFE2114B5",
       "port": 2,
       "rssi": -107
-    })",1);
+    })";
+
+    char time_data[] = {"{\n"
+                        "  \"app\": \"Raspiber-handler\",\n"
+                        "  \"battery\": 0,\n"
+                        "  \"codr\": \"4/5\",\n"
+                        "  \"data\": \"01000000000000000100000000000000\",\n"
+                        "  \"data1\": 0,\n"
+                        "  \"data2\": 0,\n"
+                        "  \"data3\": 30,\n"
+                        "  \"data4\": 0,\n"
+                        "  \"data5\": 0,\n"
+                        "  \"data6\": 0,\n"
+                        "  \"data7\": 0,\n"
+                        "  \"datatype\": 30,\n"
+                        "  \"datetime\": \"2023-03-26T09:12:02Z\",\n"
+                        "  \"datr\": \"SF12BW125\",\n"
+                        "  \"desc\": \"Control\",\n"
+                        "  \"devaddr\": \"B54E453C\",\n"
+                        "  \"fcnt\": 8,\n"
+                        "  \"freq\": 475.7,\n"
+                        "  \"lsnr\": -18.5,\n"
+                        "  \"mac\": \"B827EBFFFE2114B5\",\n"
+                        "  \"port\": 2,\n"
+                        "  \"rssi\": -101\n"
+                        "}"};
+
+    char cmd_data[] = {"{\"devaddr\":\"B54E453C\", \"data\":\"FA5F\",  \"confirmed\":true, \"port\":2, \"time\":\"immediately\" }"};
+    JsonStrConvertor *pJsonStrConvertor = new JsonStrConvertor(sensor_data);
+    SUBCASE("test insert data")
+    {
+        id = db->insertData(pJsonStrConvertor,1);
         CHECK(id != 0);
-        db->insertCmd(id,R"('{"devaddr":"B54E453C", "data":"FA5F",  "confirmed":true, "port":2, "time":"immediately" }')");
+        pJsonStrConvertor->parseNodeUplink(time_data);
+        id = db->insertData(pJsonStrConvertor,1);
+        db->insertCmd(id,cmd_data);
     }
 
     SUBCASE("test query data")
     {
-        queryFlag = db->queryIOStatus("B54E453C",frame);
-        CHECK(queryFlag == false);
-        db->insertData(R"({
+        char ctl_data[] = R"({
           "app": "Raspiber-handler",
           "battery": 0,
           "codr": "4/5",
@@ -79,7 +108,11 @@ TEST_CASE("TEST DB")
           "mac": "B827EBFFFE2114B5",
           "port": 2,
           "rssi": -109
-        })",1);
+        })";
+        pJsonStrConvertor->parseNodeUplink(ctl_data);
+        queryFlag = db->queryIOStatus("B54E453C",frame);
+        CHECK(queryFlag == false);
+        db->insertData(pJsonStrConvertor,1);
         queryFlag = db->queryIOStatus("B54E453C",frame);
         CHECK(queryFlag == true);
     }

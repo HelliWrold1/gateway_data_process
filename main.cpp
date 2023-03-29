@@ -62,35 +62,32 @@ int msgArrivedCallback(void* context, char* topicName, int topicLen, MQTTAsync_m
 {
     char* payload = (char*)message->payload;
     SPDLOG_LOGGER_DEBUG(logger, "Message arrived:");
-    SPDLOG_LOGGER_DEBUG(logger, "topic: %s\tpayload: '%s'\t payloadlength:%d\n\n", topicName, (char *) message->payload,
+    SPDLOG_LOGGER_DEBUG(logger, "topic: {}\tpayload: '{}'\t payloadlength:{}\n\n", topicName, (char *) message->payload,
            message->payloadlen);
     if (strstr(topicName,"uplinkFromNode/B827EBFFFE2114B5"))
     {
         // TODO 此处应为一个线程池添加任务
-        JsonStrConvertor_t jsonStrConvertor;
-        parseNodeUplink(payload, &jsonStrConvertor);
+        JsonStrConvertor *pJsonStrConvertor = new JsonStrConvertor(payload);
 
         int auto_id;
-        auto_id = db->insertData(jsonStrConvertor.str,1);
+        auto_id = db->insertData(pJsonStrConvertor,1);
         // TODO 根据配置文件判断规则
         char buf[80];
-        printf("pwd: %s\n",getcwd(buf,sizeof buf));
+        SPDLOG_LOGGER_INFO(logger, "Current Path: {}", getcwd(buf, sizeof buf));
 
         std::vector<std::string> commands;
         Rules* rules = Rules::getRules();
-        rules->setSourceData(&jsonStrConvertor);
-        bool genFlag = rules->genCommands(&jsonStrConvertor,commands); // 将源数据读入到rule对象中，生成指令
-        if (genFlag == false)
-            SPDLOG_LOGGER_DEBUG(logger, "gen %s 's command false",jsonStrConvertor.parsedData.devaddr);
-        for (int j = 0; j < commands.size(); ++j) {
-            std::cout<<commands[j]<<std::endl;
+        rules->setSourceData(pJsonStrConvertor);
+        bool genFlag = rules->genCommands(pJsonStrConvertor,commands); // 将源数据读入到rule对象中，生成指令
+        if (genFlag == true) {
+            for (int i = 0; i < commands.size(); ++i) {
+                connectorPublish(g_topic_downlink, commands[i].data(), g_qos); // 下发控制指令
+                db->insertCmd(auto_id, commands[i].data());
+            }
         }
-//        db->insertCmd(auto_id,"");
-//        mariadbConnRecv.table = jsonStrConvertor.parsedData.devaddr;
-//        mariadbCreateTable(&mariadbConnRecv);
-//        mariadbInsertRecord(&mariadbConnRecv,jsonStrConvertor.str,0);
+        SPDLOG_LOGGER_DEBUG(logger, "gen %s 's command false",pJsonStrConvertor->parsedData.devaddr);
 
-        deleteParsedNodeUplink(&jsonStrConvertor);
+        delete pJsonStrConvertor;
     }
     MQTTAsync_freeMessage(&message);
     MQTTAsync_free(topicName);
