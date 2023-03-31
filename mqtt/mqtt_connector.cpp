@@ -63,7 +63,7 @@ int startMQTTConnector()
     // 连接Broker
     if( (rc = MQTTAsync_connect(pMQTTConnector->client, &conn_opts)) != MQTTASYNC_SUCCESS )
     {
-        printf("First connection failed, error code:%d\n", rc);
+        printf("First connection failed, error code:'{}'\n", rc);
         return MQTT_CONNECTOR_CONNECT_FAILURE;
     }
     else
@@ -109,22 +109,22 @@ int connectorPublish(const char* topic, const char *payload, int qos)
     pubmsg.payload = (void*)payload;
     pubmsg.payloadlen = (int)strlen(payload);
     pubmsg.qos = qos;
-    SPDLOG_LOGGER_DEBUG(logger,"Sending:'%s'\n",(char*)pubmsg.payload);
+    SPDLOG_LOGGER_DEBUG(logger,"Sending:'{}'\n",(char*)pubmsg.payload);
     if ((rc = MQTTAsync_sendMessage(pMQTTConnector->client, topic, &pubmsg, &opts)) != MQTTASYNC_SUCCESS)
     {
-        SPDLOG_LOGGER_ERROR(logger,"Failed to send message: '{}' , error code:{}\n", (char *)pubmsg.payload, rc);
+        SPDLOG_LOGGER_ERROR(logger,"Failed to send message: '{}' , error code:'{}'\n", (char *)pubmsg.payload, rc);
         return MQTT_CONNECTOR_PUBLISH_FAILURE;
     }
     else
     {
-        SPDLOG_LOGGER_DEBUG(logger,"Succeed in sending message: '{}' , error code: {}\n", (char *)pubmsg.payload, rc);
+        SPDLOG_LOGGER_DEBUG(logger,"Succeed in sending message: '{}' , error code: '{}'\n", (char *)pubmsg.payload, rc);
         return MQTT_CONNECTOR_SUCCESS;
     }
 }
 
 void defaultOnSuccessConnected(void* context, MQTTAsync_successData* response)
 {
-    SPDLOG_LOGGER_DEBUG(logger,"successConnected Message with token value {} delivery confirmed\n", response->token);
+    SPDLOG_LOGGER_DEBUG(logger,"successConnected Message with token value '{}' delivery confirmed\n", response->token);
 }
 
 void defaultOnConnectedCallBack(void* context, char* cause)
@@ -134,22 +134,22 @@ void defaultOnConnectedCallBack(void* context, char* cause)
 
 void defaultOnConnectFailure(void* context, MQTTAsync_failureData* response)
 {
-    SPDLOG_LOGGER_DEBUG(logger,"Connection fail, error code: %d, error message:{}", response ? response->code : 0, response ? response->message : 0);
+    SPDLOG_LOGGER_DEBUG(logger,"Connection fail, error code: '{}', error message:'{}'", response ? response->code : 0, response ? response->message : 0);
 }
 
 void defaultConnLost(void* context, char* cause)
 {
-    SPDLOG_LOGGER_DEBUG(logger,"Disconnected, cause: {}", cause);
+    SPDLOG_LOGGER_DEBUG(logger,"Disconnected, cause: '{}'", cause);
 }
 
 void defaultOnSuccessSubscribe(void* context, MQTTAsync_successData* response)
 {
-    SPDLOG_LOGGER_DEBUG(logger,"Subscribe successful. Message with token value {} delivery confirmed", response->token);
+    SPDLOG_LOGGER_DEBUG(logger,"Subscribe successful. Message with token value '{}' delivery confirmed", response->token);
 }
 
 void defaultOnFailureSubscribe(void* context, MQTTAsync_failureData* response)
 {
-    SPDLOG_LOGGER_DEBUG(logger,"Subscribe failed. Message with token value {} delivery confirmed", response->token);
+    SPDLOG_LOGGER_DEBUG(logger,"Subscribe failed. Message with token value '{}' delivery confirmed", response->token);
 }
 
 int defaultMsgArrived(void* context, char* topicName, int topicLen, MQTTAsync_message *message) //接收数据回调
@@ -165,6 +165,6 @@ int defaultMsgArrived(void* context, char* topicName, int topicLen, MQTTAsync_me
 
 void defaultDelivered(void* context, MQTTAsync_token token)
 {
-    SPDLOG_LOGGER_DEBUG(logger,"Message with token value {} delivery confirmed\n", token);
+    SPDLOG_LOGGER_DEBUG(logger,"Message with token value '{}' delivery confirmed\n", token);
 }
 

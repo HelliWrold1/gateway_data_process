@@ -29,6 +29,7 @@ public:
     ~MysqlPool();
     std::map<const std::string,std::vector<const char* > > readSql(const char* sql);//sql语句的执行函数
     int createSql(const char* sql);
+    bool updateSql(const char *sql);
     bool migrateSql(const char* sql);
     static MysqlPool* getMysqlPoolObject();              //单列模式获取本类的对象
     void setParameter( const char*   _mysqlhost,

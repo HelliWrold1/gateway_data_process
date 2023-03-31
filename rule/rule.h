@@ -55,6 +55,13 @@ public:
     bool io15;
 }ControlData_t;
 
+typedef struct sTimeData {
+public:
+    int hour;
+    int min;
+    int sec;
+}TimeData_t;
+
 typedef struct sConditions{
 public:
     double co2min = -1;
@@ -116,7 +123,7 @@ private:
     int m_datatype;
     SensorData_t m_sensor_data;
     ControlData_t m_control_data;
-    IOExceptStatus_t m_io_status; // TODO 重发命令的关键成员
+    TimeData_t m_time_data;
     static int m_rules_num;
     static int m_rules_index;
     static std::map<const std::string ,Rule_t> m_rules;

@@ -72,7 +72,8 @@ TEST_CASE("TEST DB")
                         "  \"rssi\": -101\n"
                         "}"};
 
-    char cmd_data[] = {"{\"devaddr\":\"B54E453C\", \"data\":\"FA5F\",  \"confirmed\":true, \"port\":2, \"time\":\"immediately\" }"};
+    char cmd_data[] = {R"({ "devaddr":"B54E453C", "data":"FA5F", "confirmed":true, "port":2, "time":"immediately" })"};
+    char time_cmd_data[] = {R"({ "devaddr":"B54E453C", "data":"1E00001E", "confirmed":true, "port":2, "time":"immediately" })"};
     JsonStrConvertor *pJsonStrConvertor = new JsonStrConvertor(sensor_data);
     SUBCASE("test insert data")
     {
@@ -80,7 +81,9 @@ TEST_CASE("TEST DB")
         CHECK(id != 0);
         pJsonStrConvertor->parseNodeUplink(time_data);
         id = db->insertData(pJsonStrConvertor,1);
-        db->insertCmd(id,cmd_data);
+        db->insertCmd(id, cmd_data);
+//// 由于向ClassA和ClassC下发的指令的格式不能相同，暂时不做时间间隔重发的功能
+//        db->insertCmdFromCloud(time_cmd_data);
     }
 
     SUBCASE("test query data")
@@ -115,5 +118,11 @@ TEST_CASE("TEST DB")
         db->insertData(pJsonStrConvertor,1);
         queryFlag = db->queryIOStatus("B54E453C",frame);
         CHECK(queryFlag == true);
+    }
+
+    SUBCASE("test update data") {
+        db->updateCmdStatus(cmd_data,0);
+        db->updateCmdStatus(cmd_data,1);
+        db->updateCmdStatus(time_cmd_data,0);
     }
 }

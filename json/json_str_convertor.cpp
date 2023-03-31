@@ -151,7 +151,7 @@ int JsonStrConvertor::parseNodeUplink() {
     }
 
     int i = 0;
-    int value = 0;
+    double value = 0;
     struct tm time; // 用于封装和解析时间相关字符串
     time_t timestamp = 8 * 60 * 60; // 8小时时间戳，以s为单位，用于转换UTC时间
     cJSON *addJsonFlag; // 标志添加键值对是否成功，影响到解析成功与否
@@ -170,7 +170,12 @@ int JsonStrConvertor::parseNodeUplink() {
         // 传感器节点数据
         if (parsedData.datatype == TYPE_SENSOR_DATA) {
             for (i = 0; i < KEY_RANK; ++i) {
-                value = cJSON_GetObjectItem(json, key[DATA_LINE][i])->valueint;
+                if (i < 4)
+                    value = cJSON_GetObjectItem(json, key[DATA_LINE][i])->valuedouble;
+                if (i == 4 || i == 5)
+                    value = cJSON_GetObjectItem(json, key[DATA_LINE][i])->valuedouble / 10;
+                if (i == 6)
+                    value = cJSON_GetObjectItem(json, key[DATA_LINE][i])->valuedouble / 100;
                 addJsonFlag = cJSON_AddNumberToObject(json, key[SENSOR_LINE][i], value);
             }
             fillParsedSensorData(key);
@@ -185,13 +190,11 @@ int JsonStrConvertor::parseNodeUplink() {
         }
         // 时间间隔数据
         if (parsedData.datatype == TYPE_INTERVAL_TIME_DATA) {
-            int hour, min, sec;
             char intervalTime[15];
-
-            hour = cJSON_GetObjectItem(json, "data1")->valueint;
-            min = cJSON_GetObjectItem(json, "data2")->valueint;
-            sec = cJSON_GetObjectItem(json, "data3")->valueint;
-            sprintf(intervalTime, "%02d:%02d:%02d", hour, min, sec);
+            parsedData.hour = cJSON_GetObjectItem(json, "data1")->valueint;
+            parsedData.min = cJSON_GetObjectItem(json, "data2")->valueint;
+            parsedData.sec = cJSON_GetObjectItem(json, "data3")->valueint;
+            sprintf(intervalTime, "%02d:%02d:%02d", parsedData.hour, parsedData.min, parsedData.sec);
             strptime(intervalTime, "%H:%M:%S", &time);
             sprintf(intervalTime, "%02d:%02d:%02d", time.tm_hour, time.tm_min, time.tm_sec);
             addJsonFlag = cJSON_AddStringToObject(json, "intervaltime", intervalTime);
@@ -240,23 +243,23 @@ int JsonStrConvertor::parseNodeUplink() {
 }
 
 void JsonStrConvertor::fillParsedSensorData(char *(*key)[7]) {
-    parsedData.nh3 = cJSON_GetObjectItem(json, key[DATA_LINE][0])->valuedouble;
-    parsedData.h2s = cJSON_GetObjectItem(json, key[DATA_LINE][1])->valuedouble;
-    parsedData.co = cJSON_GetObjectItem(json, key[DATA_LINE][2])->valuedouble;
-    parsedData.co2 = cJSON_GetObjectItem(json, key[DATA_LINE][3])->valuedouble;
-    parsedData.humi = cJSON_GetObjectItem(json, key[DATA_LINE][4])->valuedouble / 10;
-    parsedData.temp = cJSON_GetObjectItem(json, key[DATA_LINE][5])->valuedouble / 10;
-    parsedData.lux = cJSON_GetObjectItem(json, key[DATA_LINE][6])->valuedouble / 100;
+    parsedData.nh3 = cJSON_GetObjectItem(json, key[SENSOR_LINE][0])->valuedouble;
+    parsedData.h2s = cJSON_GetObjectItem(json, key[SENSOR_LINE][1])->valuedouble;
+    parsedData.co = cJSON_GetObjectItem(json, key[SENSOR_LINE][2])->valuedouble;
+    parsedData.co2 = cJSON_GetObjectItem(json, key[SENSOR_LINE][3])->valuedouble;
+    parsedData.humi = cJSON_GetObjectItem(json, key[SENSOR_LINE][4])->valuedouble;
+    parsedData.temp = cJSON_GetObjectItem(json, key[SENSOR_LINE][5])->valuedouble;
+    parsedData.lux = cJSON_GetObjectItem(json, key[SENSOR_LINE][6])->valuedouble;
 }
 
 void JsonStrConvertor::fillParsedControlData(char *(*key)[7]) {
-    parsedData.io4 = cJSON_GetObjectItem(json, key[DATA_LINE][0])->valueint;
-    parsedData.io5 = cJSON_GetObjectItem(json, key[DATA_LINE][1])->valueint;
-    parsedData.io8 = cJSON_GetObjectItem(json, key[DATA_LINE][2])->valueint;
-    parsedData.io9 = cJSON_GetObjectItem(json, key[DATA_LINE][3])->valueint;
-    parsedData.io11 = cJSON_GetObjectItem(json, key[DATA_LINE][4])->valueint;
-    parsedData.io14 = cJSON_GetObjectItem(json, key[DATA_LINE][5])->valueint;
-    parsedData.io15 = cJSON_GetObjectItem(json, key[DATA_LINE][6])->valueint;
+    parsedData.io4 = cJSON_GetObjectItem(json, key[CTL_LINE][0])->valueint;
+    parsedData.io5 = cJSON_GetObjectItem(json, key[CTL_LINE][1])->valueint;
+    parsedData.io8 = cJSON_GetObjectItem(json, key[CTL_LINE][2])->valueint;
+    parsedData.io9 = cJSON_GetObjectItem(json, key[CTL_LINE][3])->valueint;
+    parsedData.io11 = cJSON_GetObjectItem(json, key[CTL_LINE][4])->valueint;
+    parsedData.io14 = cJSON_GetObjectItem(json, key[CTL_LINE][5])->valueint;
+    parsedData.io15 = cJSON_GetObjectItem(json, key[CTL_LINE][6])->valueint;
 }
 
 void JsonStrConvertor::fillParsedCommonData() {

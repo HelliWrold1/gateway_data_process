@@ -86,6 +86,10 @@ public:
         int io14;
         int io15;
 
+        int hour;
+        int min;
+        int sec;
+
         const char * intervaltime = nullptr;
         const char* localtime = nullptr;
     }parsedData;

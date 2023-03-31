@@ -12,6 +12,7 @@
 static const char* g_topic_rcvdata = "uplinkFromNode/#";  // lorawan-server uplink topic
 static const char* g_topic_uplink = "uplinkToCloud";  // uplink to Cloud
 static const char* g_topic_downlink = "downlinkToNode"; // downlink to Node
+static const char* g_topic_from_cloud = "downlinkFromCloud";
 static const char* g_topic_bridgeStatus = "$SYS/broker/connection/raspberrypi.raspberry/state"; // $SYS/broker/connection/#
 static const int g_qos = 1;
 
@@ -62,9 +63,9 @@ int msgArrivedCallback(void* context, char* topicName, int topicLen, MQTTAsync_m
 {
     char* payload = (char*)message->payload;
     SPDLOG_LOGGER_DEBUG(logger, "Message arrived:");
-    SPDLOG_LOGGER_DEBUG(logger, "topic: {}\tpayload: '{}'\t payloadlength:{}\n\n", topicName, (char *) message->payload,
+    SPDLOG_LOGGER_DEBUG(logger, "topic: '{}'\tpayload: '{}'\t payloadlength:{}\n\n", topicName, (char *) message->payload,
            message->payloadlen);
-    if (strstr(topicName,"uplinkFromNode/B827EBFFFE2114B5"))
+    if (strstr(topicName,"uplinkFromNode"))
     {
         // TODO 此处应为一个线程池添加任务
         JsonStrConvertor *pJsonStrConvertor = new JsonStrConvertor(payload);
@@ -84,11 +85,18 @@ int msgArrivedCallback(void* context, char* topicName, int topicLen, MQTTAsync_m
                 connectorPublish(g_topic_downlink, commands[i].data(), g_qos); // 下发控制指令
                 db->insertCmd(auto_id, commands[i].data());
             }
+        } else {
+            SPDLOG_LOGGER_DEBUG(logger, "gen {} 's command false",pJsonStrConvertor->parsedData.devaddr);
         }
-        SPDLOG_LOGGER_DEBUG(logger, "gen %s 's command false",pJsonStrConvertor->parsedData.devaddr);
-
         delete pJsonStrConvertor;
     }
+
+    //// 由于向ClassA和ClassC下发的指令的格式不能相同，暂时不做时间间隔重发的功能
+//    // 将云端下发的时间间隔指令存入数据库
+//    if (strstr(topicName, g_topic_from_cloud)) {
+//        db->insertCmdFromCloud(payload);
+//    }
+
     MQTTAsync_freeMessage(&message);
     MQTTAsync_free(topicName);
 

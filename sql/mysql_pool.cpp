@@ -227,6 +227,22 @@ int MysqlPool::createSql(const char* sql){
     return 0;
 }
 
+bool MysqlPool::updateSql(const char *sql) {
+    MYSQL* conn = getOneConnect();
+    if (conn) {
+        if (mysql_query(conn,sql) == 0) {
+            SPDLOG_LOGGER_DEBUG(logger,"[DB]: {}", sql);
+        }
+        else{
+            SPDLOG_LOGGER_ERROR(logger,"[DB]: {}", mysql_error(conn));
+            SPDLOG_LOGGER_INFO(logger,"[DB]: {}", sql);
+        }
+        close(conn);
+        return 0;
+    }
+    return 0;
+}
+
 bool MysqlPool::migrateSql(const char* sql)
 {
     MYSQL* conn = getOneConnect();
@@ -255,4 +271,6 @@ MysqlPool::~MysqlPool() {
     }
     mysql_library_end();
 }
+
+
 

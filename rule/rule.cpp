@@ -224,6 +224,9 @@ void Rules::setSourceData(JsonStrConvertor *pJsonStrConvertor) {
         m_sensor_data.co2 = pJsonStrConvertor->parsedData.co2;
         m_sensor_data.h2s = pJsonStrConvertor->parsedData.h2s;
         m_sensor_data.nh3 = pJsonStrConvertor->parsedData.nh3;
+        SPDLOG_LOGGER_INFO(logger, "temp:{} humi:{} lux:{} co:{} co2:{} h2s:{} nh3:{}",
+                           m_sensor_data.temp, m_sensor_data.humi,m_sensor_data.lux, m_sensor_data.co,
+                           m_sensor_data.co2, m_sensor_data.h2s, m_sensor_data.nh3);
     }
 
     if (m_datatype == 0x01){
@@ -237,7 +240,9 @@ void Rules::setSourceData(JsonStrConvertor *pJsonStrConvertor) {
     }
 
     if (m_datatype == 0x1E){
-        ;
+        m_time_data.hour = pJsonStrConvertor->parsedData.hour;
+        m_time_data.min = pJsonStrConvertor->parsedData.min;
+        m_time_data.sec = pJsonStrConvertor->parsedData.sec;
     }
 }
 /**
@@ -329,102 +334,150 @@ bool Rules::genCommands(JsonStrConvertor *pSourceJsonStrConvertor, std::vector<s
     bool genFlag;
     std::string source(pSourceJsonStrConvertor->parsedData.devaddr);
     std::stringstream command;
-    std::string target;
-    int cond_num;
-    if (m_rules.count(source)){
-        cond_num = m_rules[source].conditions.size();
-        genFlag = true;
-    }
-    else{
-        return false;
-    }
 
-    int target_num = m_rules[source].targets.size();
+    if (m_datatype == 0x00) {
+        std::string target;
+        int cond_num;
+        if (m_rules.count(source)){
+            cond_num = m_rules[source].conditions.size();
+            genFlag = true;
+        }
+        else{
+            genFlag = false;
+        }
 
-    for (int i = 0; i < cond_num; ++i) {
-        // 判断是否符合条件
-        if (judgeConditions(source,i)){
-            this->judgeIOExcepts(source);
-            std::map<const std::string,std::vector<const char*> > frame;
-            IOExceptStatus_t io_except;
+        int target_num = m_rules[source].targets.size();
 
-            for (int j = 0; j < target_num; ++j) {
+        for (int i = 0; i < cond_num; ++i) {
+            // 判断是否符合条件
+            if (judgeConditions(source,i)){
+                this->judgeIOExcepts(source);
+                std::map<const std::string,std::vector<const char*> > frame;
+                IOExceptStatus_t io_except;
 
-                io_except = m_excepts[ m_rules[source].targets[j] ]; // 拿到期望io
-                target.assign(m_rules[source].targets[j]); // 将接收命令的nodeID取出
+                for (int j = 0; j < target_num; ++j) {
 
-                // DB查表，查找目前状态，根据nodeID查找，如果目前无状态，则直接生成命令
-                if (m_db->queryIOStatus(m_rules[source].targets[j], frame)) {
-                    // 拿到目前IO状态，与期望IO对比
-                    JsonStrConvertor *pJsonStrConvertor = new JsonStrConvertor();
-                    const char *io_status_str = frame["frame"][0];
-                    pJsonStrConvertor->parseNodeUplink(io_status_str);
+                    io_except = m_excepts[ m_rules[source].targets[j] ]; // 拿到期望io
+                    target.assign(m_rules[source].targets[j]); // 将接收命令的nodeID取出
 
-                    if (pJsonStrConvertor->parsedData.io4 != io_except.io4) {
+                    // DB查表，查找目前状态，根据nodeID查找，如果目前无状态，则直接生成命令
+                    if (m_db->queryIOStatus(m_rules[source].targets[j], frame)) {
+                        // 拿到目前IO状态，与期望IO对比
+                        JsonStrConvertor *pJsonStrConvertor = new JsonStrConvertor();
+                        const char *io_status_str = frame["frame"][0];
+                        pJsonStrConvertor->parseNodeUplink(io_status_str);
+
+                        if (pJsonStrConvertor->parsedData.io4 != io_except.io4) {
+                            command.str(""); // reset string stream
+                            if (io_except.io4 == true){
+                                command << R"({ "devaddr":")" << target << R"(", "data":"FA4F", "confirmed":true, "port":2, "time":"immediately" })";
+                            } else {
+                                command << R"({ "devaddr":")" << target << R"(", "data":"FA40", "confirmed":true, "port":2, "time":"immediately" })";
+                            }
+                            commands.push_back(command.str());
+                            SPDLOG_LOGGER_INFO(logger, command.str());
+                        }
+
+                        if (pJsonStrConvertor->parsedData.io5 != io_except.io5) {
+                            command.str(""); // reset string stream
+                            if (io_except.io5 == true){
+                                command << R"({ "devaddr":")" << target << R"(", "data":"FA5F", "confirmed":true, "port":2, "time":"immediately" })";
+                            } else {
+                                command << R"({ "devaddr":")" << target << R"(", "data":"FA50", "confirmed":true, "port":2, "time":"immediately" })";
+                            }
+                            commands.push_back(command.str());
+                            SPDLOG_LOGGER_INFO(logger, command.str());
+                        }
+
+                        if (pJsonStrConvertor->parsedData.io9 != io_except.io9) {
+                            command.str(""); // reset string stream
+                            if (io_except.io9 == true){
+                                command << R"({ "devaddr":")" << target << R"(", "data":"FA9F", "confirmed":true, "port":2, "time":"immediately" })";
+                            } else {
+                                command << R"({ "devaddr":")" << target << R"(", "data":"FA90", "confirmed":true, "port":2, "time":"immediately" })";
+                            }
+                            commands.push_back(command.str());
+                            SPDLOG_LOGGER_INFO(logger, command.str());
+                        }
+                        delete pJsonStrConvertor;
+                    } else {
+                        // 无状态，则直接通过期望IO生成指令
                         command.str(""); // reset string stream
                         if (io_except.io4 == true){
-                            command << R"({"devaddr":)" << target << R"(, "data":"FA4F",  "confirmed":true, "port":2, "time":"immediately" })";
+                            command << R"({ "devaddr":")" << target << R"(", "data":"FA4F", "confirmed":true, "port":2, "time":"immediately" })";
                         } else {
-                            command << R"({"devaddr":)" << target << R"(, "data":"FA40",  "confirmed":true, "port":2, "time":"immediately" })";
+                            command << R"({ "devaddr":")" << target << R"(", "data":"FA40", "confirmed":true, "port":2, "time":"immediately" })";
                         }
                         commands.push_back(command.str());
-                        SPDLOG_LOGGER_DEBUG(logger, command.str());
-                    }
+                        SPDLOG_LOGGER_INFO(logger, command.str());
 
-                    if (pJsonStrConvertor->parsedData.io5 != io_except.io5) {
                         command.str(""); // reset string stream
                         if (io_except.io5 == true){
-                            command << R"({"devaddr":)" << target << R"(, "data":"FA5F",  "confirmed":true, "port":2, "time":"immediately" })";
+                            command << R"({ "devaddr":")" << target << R"(", "data":"FA5F", "confirmed":true, "port":2, "time":"immediately" })";
                         } else {
-                            command << R"({"devaddr":)" << target << R"(, "data":"FA50",  "confirmed":true, "port":2, "time":"immediately" })";
+                            command << R"({ "devaddr":")" << target << R"(", "data":"FA50", "confirmed":true, "port":2, "time":"immediately" })";
                         }
                         commands.push_back(command.str());
-                        SPDLOG_LOGGER_DEBUG(logger, command.str());
-                    }
+                        SPDLOG_LOGGER_INFO(logger, command.str());
 
-                    if (pJsonStrConvertor->parsedData.io9 != io_except.io9) {
                         command.str(""); // reset string stream
                         if (io_except.io9 == true){
-                            command << R"({"devaddr":)" << target << R"(, "data":"FA9F",  "confirmed":true, "port":2, "time":"immediately" })";
+                            command << R"({ "devaddr":")" << target << R"(", "data":"FA9F", "confirmed":true, "port":2, "time":"immediately" })";
                         } else {
-                            command << R"({"devaddr":)" << target << R"(, "data":"FA90",  "confirmed":true, "port":2, "time":"immediately" })";
+                            command << R"({ "devaddr":")" << target << R"(", "data":"FA90", "confirmed":true, "port":2, "time":"immediately" })";
                         }
                         commands.push_back(command.str());
-                        SPDLOG_LOGGER_DEBUG(logger, command.str());
-                    }
-                    delete pJsonStrConvertor;
-                } else {
-                    // 无状态，则直接通过期望IO生成指令
-                    command.str(""); // reset string stream
-                    if (io_except.io4 == true){
-                        command << R"({"devaddr":)" << target << R"(, "data":"FA4F",  "confirmed":true, "port":2, "time":"immediately" })";
-                    } else {
-                        command << R"({"devaddr":)" << target << R"(, "data":"FA40",  "confirmed":true, "port":2, "time":"immediately" })";
-                    }
-                    commands.push_back(command.str());
-                    SPDLOG_LOGGER_DEBUG(logger, command.str());
+                        // TODO 还可以添加其他io
+                        SPDLOG_LOGGER_INFO(logger, command.str());
+                    } // end if (m_db->queryIOStatus(m_rules[source].targets[j], frame))
+                } // end for (int j = 0; j < target_num; ++j)
+            } // end if (judgeConditions(source,i))
+        } // end for (int i = 0; i < cond_num; ++i)
 
-                    command.str(""); // reset string stream
-                    if (io_except.io5 == true){
-                        command << R"({"devaddr":)" << target << R"(, "data":"FA5F",  "confirmed":true, "port":2, "time":"immediately" })";
-                    } else {
-                        command << R"({"devaddr":)" << target << R"(, "data":"FA50",  "confirmed":true, "port":2, "time":"immediately" })";
-                    }
-                    commands.push_back(command.str());
-                    SPDLOG_LOGGER_DEBUG(logger, command.str());
-
-                    command.str(""); // reset string stream
-                    if (io_except.io9 == true){
-                        command << R"({"devaddr":)" << target << R"(, "data":"FA9F",  "confirmed":true, "port":2, "time":"immediately" })";
-                    } else {
-                        command << R"({"devaddr":)" << target << R"(, "data":"FA90",  "confirmed":true, "port":2, "time":"immediately" })";
-                    }
-                    commands.push_back(command.str());
-                    SPDLOG_LOGGER_DEBUG(logger, command.str());
-                } // end if (m_db->queryIOStatus(m_rules[source].targets[j], frame))
-            } // end for (int j = 0; j < target_num; ++j)
-        } // end if (judgeConditions(source,i))
-    } // end for (int i = 0; i < cond_num; ++i)
+    } else if (m_datatype == 0x01) { // elseif if (m_datatype == 0x01)
+        // 处理控制节点数据
+        if (m_control_data.io4 == false) {
+            command.str("");
+            command << R"({ "devaddr":")" << source << R"(", "data":"FA4F", "confirmed":true, "port":2, "time":"immediately" })";
+            m_db->updateCmdStatus(command.str().data(), 0);
+        }
+        if (m_control_data.io4 == true) {
+            command.str("");
+            command << R"({ "devaddr":")" << source << R"(", "data":"FA40", "confirmed":true, "port":2, "time":"immediately" })";
+            m_db->updateCmdStatus(command.str().data(), 0);
+        }
+        if (m_control_data.io5 == false) {
+            command.str("");
+            command << R"({ "devaddr":")" << source << R"(", "data":"FA5F", "confirmed":true, "port":2, "time":"immediately" })";
+            m_db->updateCmdStatus(command.str().data(), 0);
+        }
+        if (m_control_data.io5 == true) {
+            command.str("");
+            command << R"({ "devaddr":")" << source << R"(", "data":"FA50", "confirmed":true, "port":2, "time":"immediately" })";
+            m_db->updateCmdStatus(command.str().data(), 0);
+        }
+        if (m_control_data.io9 == false) {
+            command.str("");
+            command << R"({ "devaddr":")" << source << R"(", "data":"FA9F", "confirmed":true, "port":2, "time":"immediately" })";
+            m_db->updateCmdStatus(command.str().data(), 0);
+        }
+        if (m_control_data.io9 == true) {
+            command.str("");
+            command << R"({ "devaddr":")" << source << R"(", "data":"FA90", "confirmed":true, "port":2, "time":"immediately" })";
+            m_db->updateCmdStatus(command.str().data(), 0);
+        }
+        // TODO 还可以添加其他的io
+    } else if (m_datatype == 0x1E) { // elseif if (m_datatype == 0x01)
+        //// 由于向ClassA和ClassC下发的指令的格式不能相同，暂时不做时间间隔重发的功能
+//        char intervalTime[15];
+//        std::string intervalTimeString;
+//        sprintf(intervalTime, "%02X%02X%02X", m_time_data.hour, m_time_data.min, m_time_data.sec);
+//        intervalTimeString.assign(intervalTime);
+//        command.str("");
+//        command << R"({ "devaddr":")" << source << R"(", "data":"1E)" << intervalTimeString << R"(", )" << R"("confirmed":true, "port":2, "time":"immediately" })";
+//        m_db->updateCmdStatus(command.str().data(), 0);
+//        m_db->updateCmdStatus(command.str().data(), 1);
+    } // end if (m_datatype == 0x01)
 
     return genFlag;
 }
