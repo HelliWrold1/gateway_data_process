@@ -16,6 +16,8 @@
 #include "json_str_convertor.h"
 #include "DB.h"
 #include <unistd.h>
+#include<mutex>
+#include<thread>
 
 class JsonStrConvertor;
 class DB;
@@ -84,7 +86,8 @@ typedef struct sActions{
     // 0: close 1: open -1: no action
     int light = -1;
     int fun = -1;
-    int curtain = -1;
+//// 添加规则的动作的示例
+//    int curtain = -1;
 }Actions_t;
 
 typedef struct sIOExceptStatus{
@@ -107,7 +110,7 @@ typedef struct sRule{
 class Rules {
 public:
     static Rules* getRules();
-    static void setRule();
+    static bool setRule();
     static Rules* getRules(char* jsonFilePath);
     void setSourceData(JsonStrConvertor *pJsonStrConvertor);
     bool judgeIOExcepts(std::string &source);
@@ -128,12 +131,8 @@ private:
     static int m_rules_index;
     static std::map<const std::string ,Rule_t> m_rules;
     static std::map<const std::string ,IOExceptStatus_t> m_excepts;
-    static Rules *g_rules;
     static DB *m_db;
+    static std::mutex m_rules_lock; // 规则锁
 };
-
-
-
-
 
 #endif //GATEWAY_DATA_PROCESS_RULE_H

@@ -198,13 +198,14 @@ void DB::updateCmdStatus(const char *cmd, int status_type) {
 
 bool DB::queryIOStatus(std::string devAddr, std::map<const std::string,std::vector<const char*> > &records) {
     char sql[4096];
-    sprintf(sql, "SELECT frame FROM data WHERE dev_addr=\"%s\" AND data_type=1", devAddr.data());
+    sprintf(sql, "SELECT frame FROM data WHERE dev_addr=\"%s\" AND data_type=1 ORDER BY id DESC LIMIT 1", devAddr.data());
     records = mysql->readSql(sql);
     if (records["frame"].empty()){
         SPDLOG_LOGGER_DEBUG(logger, "false");
         return false;
     }
     else{
+        SPDLOG_LOGGER_DEBUG(logger, "{}", records["frame"][0]);
         SPDLOG_LOGGER_DEBUG(logger, "true");
         return true;
     }

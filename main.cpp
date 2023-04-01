@@ -12,9 +12,10 @@
 static const char* g_topic_rcvdata = "uplinkFromNode/#";  // lorawan-server uplink topic
 static const char* g_topic_uplink = "uplinkToCloud";  // uplink to Cloud
 static const char* g_topic_downlink = "downlinkToNode"; // downlink to Node
-static const char* g_topic_from_cloud = "downlinkFromCloud";
+static const char* g_topic_rules_from_cloud = "rulesFromCloud";
 static const char* g_topic_bridgeStatus = "$SYS/broker/connection/raspberrypi.raspberry/state"; // $SYS/broker/connection/#
 static const int g_qos = 1;
+static char jsonfile[] = "../rule/rules.json";
 
 static DB *db;
 
@@ -42,35 +43,47 @@ int main() {
 
     db = DB::getDB();
 
-    char jsonfile[] = "../rule/rules.json";
     std::vector<std::string> commands;
-    Rules* rules = Rules::getRules(jsonfile);
+    Rules *rules = Rules::getRules(jsonfile);
+    if (rules) {
+        delete rules;
+        SPDLOG_LOGGER_INFO(logger, "Set Rules successful!");
+    }
 
     while(1){ }
-
-    return 0;
 }
 
 // 为MQTTAsync提供每次连接成功后的回调函数
 void eachConnectedCallback(void* context, char* cause)
 {
-    connectorSubscribe(g_topic_rcvdata,g_qos);
-    connectorSubscribe(g_topic_bridgeStatus,g_qos);
+    connectorSubscribe(g_topic_rcvdata, g_qos);
+    connectorSubscribe(g_topic_bridgeStatus, g_qos);
+    connectorSubscribe(g_topic_rules_from_cloud, g_qos);
     SPDLOG_LOGGER_DEBUG(logger, "Connection successful.");
 }
 
-int msgArrivedCallback(void* context, char* topicName, int topicLen, MQTTAsync_message *message) //接收数据回调
-{
+/**
+ * 接收数据回调
+ * @param context
+ * @param topicName
+ * @param topicLen
+ * @param message
+ * @return
+ */
+int msgArrivedCallback(void* context, char* topicName, int topicLen, MQTTAsync_message *message) {
     char* payload = (char*)message->payload;
     SPDLOG_LOGGER_DEBUG(logger, "Message arrived:");
     SPDLOG_LOGGER_DEBUG(logger, "topic: '{}'\tpayload: '{}'\t payloadlength:{}\n\n", topicName, (char *) message->payload,
            message->payloadlen);
-    if (strstr(topicName,"uplinkFromNode"))
-    {
+    if (strstr(topicName,"uplinkFromNode")) {
         // TODO 此处应为一个线程池添加任务
         JsonStrConvertor *pJsonStrConvertor = new JsonStrConvertor(payload);
 
         int auto_id;
+        // 如果是传感器数据或时间间隔数据，则上传到云端
+        if (pJsonStrConvertor->parsedData.datatype == TYPE_SENSOR_DATA ||
+            pJsonStrConvertor->parsedData.datatype == TYPE_INTERVAL_TIME_DATA)
+                connectorPublish(g_topic_uplink, pJsonStrConvertor->str, g_qos);
         auto_id = db->insertData(pJsonStrConvertor,1);
         // TODO 根据配置文件判断规则
         char buf[80];
@@ -88,10 +101,29 @@ int msgArrivedCallback(void* context, char* topicName, int topicLen, MQTTAsync_m
         } else {
             SPDLOG_LOGGER_DEBUG(logger, "gen {} 's command false",pJsonStrConvertor->parsedData.devaddr);
         }
+
         delete pJsonStrConvertor;
+        delete rules;
     }
 
-    //// 由于向ClassA和ClassC下发的指令的格式不能相同，暂时不做时间间隔重发的功能
+    // 规则下发后，重新向Rules类中读取规则
+    if (strstr(topicName, g_topic_rules_from_cloud)) {
+        // 将文件写入到json文件中
+        if (cJSON_Parse(payload) != nullptr) {
+            FILE *fp = fopen(jsonfile, "w");
+            if (fp)
+                fprintf(fp, "%s",payload);
+            fclose(fp);
+        }
+        Rules *rules = Rules::getRules(jsonfile);
+        if (rules) {
+            delete rules;
+            SPDLOG_LOGGER_INFO(logger, "Reset Rules successful!");
+        }
+    }
+
+
+//// 由于向ClassA和ClassC下发的指令的格式不能相同，暂时不做时间间隔重发的功能
 //    // 将云端下发的时间间隔指令存入数据库
 //    if (strstr(topicName, g_topic_from_cloud)) {
 //        db->insertCmdFromCloud(payload);

@@ -6,13 +6,13 @@
 
 static auto logger = spdlog::get("logger");
 
-Rules* Rules::g_rules = nullptr;
 int Rules::m_rules_num = 0;
 int Rules::m_rules_index = 0;
 std::map<const std::string ,Rule_t> Rules::m_rules;
 std::map<const std::string ,IOExceptStatus_t> Rules::m_excepts;
 ParsedJsonRule_t Rules::m_json_rules;
 DB* Rules::m_db = DB::getDB();
+std::mutex Rules::m_rules_lock;
 
 Rules::Rules() {
     m_rules_index = 0;
@@ -21,7 +21,7 @@ Rules::Rules() {
 /**
  * 从解析后的条件结构体中取出源节点（传感器节点）、条件（范围要求）、目标（关联的控制节点）、命令（控制节点的设备动作）
  */
-void Rules::setRule() {
+bool Rules::setRule() {
     // 递归读取规则
     if (m_rules_index < m_rules_num){
 
@@ -81,8 +81,9 @@ void Rules::setRule() {
                 judgeAction(actions.light,device_str,i);
                 device_str = "fun";
                 judgeAction(actions.fun,device_str,i);
-                device_str = "curtain";
-                judgeAction(actions.curtain,device_str,i);
+//// 添加规则的动作的示例
+//                device_str = "curtain";
+//                judgeAction(actions.curtain,device_str,i);
                 rule.actions.push_back(actions);
             }
         }
@@ -93,12 +94,15 @@ void Rules::setRule() {
         m_rules_index += 1;
         setRule(); // 递归读取
     }
+    m_rules_lock.unlock(); // 规则锁解开，其他对象可以重新读取规则
+
+    return true;
 }
 
 /**
  * 将动作读入到rule对象中
- * @param device 引用设备成员变量，分别为light、fun、curtain
- * @param device_str 引用设备字符串，分别为 "light"、"fun"、"curtain"
+ * @param device 引用设备成员变量，分别为light、fun
+ * @param device_str 引用设备字符串，分别为 "light"、"fun"
  */
 void Rules::judgeAction(int &device,std::string &device_str, int &cmd_index)
 {
@@ -117,24 +121,24 @@ void Rules::judgeAction(int &device,std::string &device_str, int &cmd_index)
 /**
  * 将cJSON解析的rules读入到rule对象中
  * @param rules
- * @return 返回单例对象
+ * @return 返回对象的指针，必须使用指针变量接收地址，用完后delete
  */
 Rules* Rules::getRules(char* jsonFilePath) {
+    m_rules_lock.lock(); // 读取规则的时候就加锁
     JsonStrConvertor * pJsonStrConvertor = new JsonStrConvertor();
     ParsedJsonRule_t parsedJsonRule;
     if (!pJsonStrConvertor->parseRuleFile(jsonFilePath,&parsedJsonRule)){
         m_json_rules = parsedJsonRule;
     }
-//    m_json_rules = rules;
     m_rules_num = m_json_rules.rules.size();
-    setRule();
-    return getRules();
+    if (setRule() == true)
+        return getRules();
+    else
+        return nullptr; // 代表设置规则失败
 }
 
 Rules* Rules::getRules() {
-    if (g_rules == nullptr)
-        g_rules = new Rules();
-    return g_rules;
+    return new Rules();
 }
 
 /**
@@ -255,7 +259,10 @@ bool Rules::judgeIOExcepts(std::string &source) {
     bool judgeIOFlag;
 
     int cond_num;
-    int light, fun, curtain;
+    int light;
+    int fun;
+//// 添加规则的动作的示例
+//    int curtain;
     if (m_rules.count(source)){
         cond_num = m_rules[source].conditions.size();
         judgeIOFlag = true;
@@ -272,7 +279,8 @@ bool Rules::judgeIOExcepts(std::string &source) {
             // 初始化本次action
             action.light = m_rules[source].actions[i].light;
             action.fun = m_rules[source].actions[i].fun;
-            action.curtain = m_rules[source].actions[i].curtain;
+//// 添加规则的动作的示例
+//            action.curtain = m_rules[source].actions[i].curtain;
             // 条件组判断通过后，对期望值做出更改
             if (action.light == 1) {
                 for (int j = 0; j < target_num; ++j) {
@@ -308,22 +316,23 @@ bool Rules::judgeIOExcepts(std::string &source) {
                 }
             }
 
-            if (action.curtain == 1) {
-                for (int j = 0; j < target_num; ++j) {
-                    // 如果期望值里没有某ControlNode的期望值，那么新建
-                    if ( m_excepts.count(m_rules[source].targets[j]) )
-                        m_excepts.insert({m_rules[source].targets[j], io_except});
-                    m_excepts[ m_rules[source].targets[j] ].io9 = true;
-                }
-            }
-            if (action.curtain == 0) {
-                for (int j = 0; j < target_num; ++j) {
-                    // 如果期望值里没有某ControlNode的期望值，那么新建
-                    if ( m_excepts.count(m_rules[source].targets[j]) )
-                        m_excepts.insert({m_rules[source].targets[j], io_except});
-                    m_excepts[ m_rules[source].targets[j] ].io5 = false;
-                }
-            }
+//// 可以添加更多的io动作，下面是个示例
+//            if (action.curtain == 1) {
+//                for (int j = 0; j < target_num; ++j) {
+//                    // 如果期望值里没有某ControlNode的期望值，那么新建
+//                    if ( m_excepts.count(m_rules[source].targets[j]) )
+//                        m_excepts.insert({m_rules[source].targets[j], io_except});
+//                    m_excepts[ m_rules[source].targets[j] ].io9 = true;
+//                }
+//            }
+//            if (action.curtain == 0) {
+//                for (int j = 0; j < target_num; ++j) {
+//                    // 如果期望值里没有某ControlNode的期望值，那么新建
+//                    if ( m_excepts.count(m_rules[source].targets[j]) )
+//                        m_excepts.insert({m_rules[source].targets[j], io_except});
+//                    m_excepts[ m_rules[source].targets[j] ].io9 = false;
+//                }
+//            }
 
         } // end if (judgeConditions(source,i))
     } // end for (int i = 0; i < cond_num; ++i)
@@ -388,17 +397,17 @@ bool Rules::genCommands(JsonStrConvertor *pSourceJsonStrConvertor, std::vector<s
                             commands.push_back(command.str());
                             SPDLOG_LOGGER_INFO(logger, command.str());
                         }
-
-                        if (pJsonStrConvertor->parsedData.io9 != io_except.io9) {
-                            command.str(""); // reset string stream
-                            if (io_except.io9 == true){
-                                command << R"({ "devaddr":")" << target << R"(", "data":"FA9F", "confirmed":true, "port":2, "time":"immediately" })";
-                            } else {
-                                command << R"({ "devaddr":")" << target << R"(", "data":"FA90", "confirmed":true, "port":2, "time":"immediately" })";
-                            }
-                            commands.push_back(command.str());
-                            SPDLOG_LOGGER_INFO(logger, command.str());
-                        }
+//// 还可以添加其他IO，下面是个示例
+//                        if (pJsonStrConvertor->parsedData.io9 != io_except.io9) {
+//                            command.str(""); // reset string stream
+//                            if (io_except.io9 == true){
+//                                command << R"({ "devaddr":")" << target << R"(", "data":"FA9F", "confirmed":true, "port":2, "time":"immediately" })";
+//                            } else {
+//                                command << R"({ "devaddr":")" << target << R"(", "data":"FA90", "confirmed":true, "port":2, "time":"immediately" })";
+//                            }
+//                            commands.push_back(command.str());
+//                            SPDLOG_LOGGER_INFO(logger, command.str());
+//                        }
                         delete pJsonStrConvertor;
                     } else {
                         // 无状态，则直接通过期望IO生成指令
@@ -419,16 +428,15 @@ bool Rules::genCommands(JsonStrConvertor *pSourceJsonStrConvertor, std::vector<s
                         }
                         commands.push_back(command.str());
                         SPDLOG_LOGGER_INFO(logger, command.str());
-
-                        command.str(""); // reset string stream
-                        if (io_except.io9 == true){
-                            command << R"({ "devaddr":")" << target << R"(", "data":"FA9F", "confirmed":true, "port":2, "time":"immediately" })";
-                        } else {
-                            command << R"({ "devaddr":")" << target << R"(", "data":"FA90", "confirmed":true, "port":2, "time":"immediately" })";
-                        }
-                        commands.push_back(command.str());
-                        // TODO 还可以添加其他io
-                        SPDLOG_LOGGER_INFO(logger, command.str());
+//// 还可以添加其他IO，下面是个示例
+//                        command.str(""); // reset string stream
+//                        if (io_except.io9 == true){
+//                            command << R"({ "devaddr":")" << target << R"(", "data":"FA9F", "confirmed":true, "port":2, "time":"immediately" })";
+//                        } else {
+//                            command << R"({ "devaddr":")" << target << R"(", "data":"FA90", "confirmed":true, "port":2, "time":"immediately" })";
+//                        }
+//                        commands.push_back(command.str());
+//                        SPDLOG_LOGGER_INFO(logger, command.str());
                     } // end if (m_db->queryIOStatus(m_rules[source].targets[j], frame))
                 } // end for (int j = 0; j < target_num; ++j)
             } // end if (judgeConditions(source,i))
@@ -456,19 +464,19 @@ bool Rules::genCommands(JsonStrConvertor *pSourceJsonStrConvertor, std::vector<s
             command << R"({ "devaddr":")" << source << R"(", "data":"FA50", "confirmed":true, "port":2, "time":"immediately" })";
             m_db->updateCmdStatus(command.str().data(), 0);
         }
-        if (m_control_data.io9 == false) {
-            command.str("");
-            command << R"({ "devaddr":")" << source << R"(", "data":"FA9F", "confirmed":true, "port":2, "time":"immediately" })";
-            m_db->updateCmdStatus(command.str().data(), 0);
-        }
-        if (m_control_data.io9 == true) {
-            command.str("");
-            command << R"({ "devaddr":")" << source << R"(", "data":"FA90", "confirmed":true, "port":2, "time":"immediately" })";
-            m_db->updateCmdStatus(command.str().data(), 0);
-        }
-        // TODO 还可以添加其他的io
+//// 可以添加其他IO，下面是个示例
+//        if (m_control_data.io9 == false) {
+//            command.str("");
+//            command << R"({ "devaddr":")" << source << R"(", "data":"FA9F", "confirmed":true, "port":2, "time":"immediately" })";
+//            m_db->updateCmdStatus(command.str().data(), 0);
+//        }
+//        if (m_control_data.io9 == true) {
+//            command.str("");
+//            command << R"({ "devaddr":")" << source << R"(", "data":"FA90", "confirmed":true, "port":2, "time":"immediately" })";
+//            m_db->updateCmdStatus(command.str().data(), 0);
+//        }
     } else if (m_datatype == 0x1E) { // elseif if (m_datatype == 0x01)
-        //// 由于向ClassA和ClassC下发的指令的格式不能相同，暂时不做时间间隔重发的功能
+//// 由于向ClassA和ClassC下发的指令的格式不能相同，暂时不做时间间隔重发的功能
 //        char intervalTime[15];
 //        std::string intervalTimeString;
 //        sprintf(intervalTime, "%02X%02X%02X", m_time_data.hour, m_time_data.min, m_time_data.sec);
