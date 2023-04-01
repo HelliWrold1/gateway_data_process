@@ -8,6 +8,7 @@
 MysqlPool *mysql;
 DB * db;
 static auto logger = spdlog::get("logger");
+std::mutex DB::m_object_lock;
 
 DB::DB()
 {
@@ -21,10 +22,12 @@ DB::~DB()
     delete mysql;
 }
 
-DB* DB::getDB(void)
-{
+DB* DB::getDB(void) {
     if (db== nullptr) {
-        db = new DB();
+        m_object_lock.lock();
+        if(db == nullptr)
+            db = new DB();
+        m_object_lock.unlock();
     }
     return db;
 }
@@ -59,10 +62,10 @@ void DB::migrate()
 }
 
 /**
- * 存储数据
- * @param frame
- * @param send_status
- * @return 自增id
+ * 存储节点数据
+ * @param pJsonStrConvertor
+ * @param send_status MQTT发送状态 0: 未发送 1: 已发送
+ * @return 返回自增id
  */
 int DB::insertData(JsonStrConvertor *pJsonStrConvertor, int send_status)
 {
@@ -84,82 +87,36 @@ int DB::insertData(JsonStrConvertor *pJsonStrConvertor, int send_status)
     // 查询当前IO或当前下位机上传间隔是否存在，存在则更新，不存在则插入
     if (pJsonStrConvertor->parsedData.datatype == 0x01)
         sprintf(sql,"INSERT INTO data(dev_addr, data_type, frame, send_status) "
-                    "VALUES("
-                    "\"%s\","
-                    "%d,"
-                    "JSON_REMOVE(JSON_SET('%s','$.localtime',"
-                    "DATE_ADD(STR_TO_DATE(JSON_VALUE('%s','$.datetime'),'%%Y-%%m-%%dT%%H:%%i:%%sZ'),"
-                    "INTERVAL 8 HOUR)),'$.codr','$.datr','$.desc','$.freq','$.lsnr','$.port','$.rssi'),"
-                    "%d"
-                    ")"
-                    "ON DUPLICATE KEY UPDATE "
-                    "frame ="
-                    "IF("
-                    "dev_addr=\"%s\" "
-                    "AND "
-                    "data_type=%d, "
-                    "JSON_REMOVE(JSON_SET('%s','$.localtime',"
-                    "DATE_ADD(STR_TO_DATE(JSON_VALUE('%s','$.datetime'),'%%Y-%%m-%%dT%%H:%%i:%%sZ'),"
-                    "INTERVAL 8 HOUR)),'$.codr','$.datr','$.desc','$.freq','$.lsnr','$.port','$.rssi'),"
-                    "frame"
-                    "), "
-                    "send_status = "
-                    "IF("
-                    "dev_addr=\"%s\" "
-                    "AND "
-                    "data_type=%d, "
-                    "%d, "
-                    "send_status"
-                    ")",
-                    pJsonStrConvertor->parsedData.devaddr, pJsonStrConvertor->parsedData.datatype,
-                    pJsonStrConvertor->str, pJsonStrConvertor->str, send_status,
-                    pJsonStrConvertor->parsedData.devaddr, pJsonStrConvertor->parsedData.datatype,
-                    pJsonStrConvertor->str, pJsonStrConvertor->str, pJsonStrConvertor->parsedData.devaddr,
-                    pJsonStrConvertor->parsedData.datatype, send_status);
+                                "VALUES("
+                                "\"%s\","
+                                "%d,"
+                                "JSON_REMOVE(JSON_SET('%s','$.localtime',"
+                                "DATE_ADD(STR_TO_DATE(JSON_VALUE('%s','$.datetime'),'%%Y-%%m-%%dT%%H:%%i:%%sZ'),"
+                                "INTERVAL 8 HOUR)),'$.codr','$.datr','$.desc','$.freq','$.lsnr','$.port','$.rssi'),"
+                                "%d"
+                                ")",
+                                pJsonStrConvertor->parsedData.devaddr, pJsonStrConvertor->parsedData.datatype,
+                                pJsonStrConvertor->str, pJsonStrConvertor->str, send_status);
     if (pJsonStrConvertor->parsedData.datatype == 0x1E)
         sprintf(sql, "INSERT INTO data(dev_addr, data_type, frame, send_status) "
-                     "VALUES("
-                     "\"%s\","
-                     "%d,"
-                     "JSON_REMOVE(JSON_SET('%s','$.localtime',"
-                     "DATE_ADD(STR_TO_DATE(JSON_VALUE('%s','$.datetime'),'%%Y-%%m-%%dT%%H:%%i:%%sZ'),"
-                     "INTERVAL 8 HOUR)),'$.codr','$.datr','$.desc','$.freq','$.lsnr','$.port','$.rssi'),"
-                     "%d"
-                     ")"
-                     "ON DUPLICATE KEY UPDATE "
-                     "frame ="
-                     "IF("
-                     "dev_addr=\"%s\" "
-                     "AND "
-                     "data_type=%d, "
-                     "JSON_REMOVE(JSON_SET('%s','$.localtime',"
-                     "DATE_ADD(STR_TO_DATE(JSON_VALUE('%s','$.datetime'),'%%Y-%%m-%%dT%%H:%%i:%%sZ'),"
-                     "INTERVAL 8 HOUR)),'$.codr','$.datr','$.desc','$.freq','$.lsnr','$.port','$.rssi'),"
-                     "frame"
-                     "), "
-                     "send_status = "
-                     "IF("
-                     "dev_addr=\"%s\" "
-                     "AND "
-                     "data_type=%d, "
-                     "%d, "
-                     "send_status"
-                     ")",
-                    pJsonStrConvertor->parsedData.devaddr, pJsonStrConvertor->parsedData.datatype,
-                    pJsonStrConvertor->str, pJsonStrConvertor->str, send_status,
-                    pJsonStrConvertor->parsedData.devaddr, pJsonStrConvertor->parsedData.datatype,
-                    pJsonStrConvertor->str, pJsonStrConvertor->str, pJsonStrConvertor->parsedData.devaddr,
-                    pJsonStrConvertor->parsedData.datatype, send_status);
+                                 "VALUES("
+                                 "\"%s\","
+                                 "%d,"
+                                 "JSON_REMOVE(JSON_SET('%s','$.localtime',"
+                                 "DATE_ADD(STR_TO_DATE(JSON_VALUE('%s','$.datetime'),'%%Y-%%m-%%dT%%H:%%i:%%sZ'),"
+                                 "INTERVAL 8 HOUR)),'$.codr','$.datr','$.desc','$.freq','$.lsnr','$.port','$.rssi'),"
+                                 "%d"
+                                 ")",
+                                pJsonStrConvertor->parsedData.devaddr,pJsonStrConvertor->parsedData.datatype,
+                                pJsonStrConvertor->str, pJsonStrConvertor->str, send_status);
     auto_id = mysql->createSql(sql);
     SPDLOG_LOGGER_DEBUG(logger,"[DB]: auto increment id:{}", auto_id);
     return auto_id;
 }
 /**
- * 插入和更新未执行且未发送的cmd
- * @param data_id
- * @param cmd
- * @param exe_status
- * @param send_status
+ * 插入和更新未执行且未发送的Command
+ * @param data_id 记录ID
+ * @param cmd 未执行且未发送的Command
  */
 void DB::insertCmd(int data_id, const char *cmd)
 {
@@ -178,25 +135,12 @@ void DB::insertCmd(int data_id, const char *cmd)
 }
 
 /**
- * 改变执行状态或发送状态-->已执行或已发送
- * @param cmd 被更新的指令记录的指令内容
- * @param status_type 0:更改执行状态 1:更改发送状态
+ * 查询某个控制节点的IO状态
+ * @param devAddr 节点ID
+ * @param records 接收记录的map
+ * @return true: 查询成功 false: 查询失败
  */
-void DB::updateCmdStatus(const char *cmd, int status_type) {
-    char sql[4096];
-    if (status_type == 0) { // 将执行状态改为已执行
-        sprintf(sql, "UPDATE cmd "
-                        "SET exe_status = %d WHERE cmd='%s' AND exe_status=0",
-                        1, cmd);
-    } else { // 将已经执行的cmd的发送状态改为已发送
-        sprintf(sql, "UPDATE cmd "
-                        "SET send_status = %d WHERE cmd='%s' AND exe_status=1",
-                        1, cmd);
-    }
-    mysql->updateSql(sql);
-}
-
-bool DB::queryIOStatus(std::string devAddr, std::map<const std::string,std::vector<const char*> > &records) {
+bool DB::queryIOStatus(std::string devAddr, std::unordered_map<std::string, std::vector<const char*>, sHash> &records) {
     char sql[4096];
     sprintf(sql, "SELECT frame FROM data WHERE dev_addr=\"%s\" AND data_type=1 ORDER BY id DESC LIMIT 1", devAddr.data());
     records = mysql->readSql(sql);
@@ -209,6 +153,100 @@ bool DB::queryIOStatus(std::string devAddr, std::map<const std::string,std::vect
         SPDLOG_LOGGER_DEBUG(logger, "true");
         return true;
     }
+}
+
+/**
+ * 查询未发送的数据
+ * @param records 接收查询到的传感器数据
+ * @return true: 查询成功 false: 查询失败
+ */
+bool DB::queryUnsentData(std::unordered_map<std::string, std::vector<const char*>, sHash> &records) {
+    char sql[4096];
+    sprintf(sql, "SELECT id, frame FROM data WHERE send_status=0 AND datatype<2");
+    records = mysql->readSql(sql);
+    if (records["frame"].empty()) {
+        SPDLOG_LOGGER_DEBUG(logger, "false");
+        return false;
+    } else {
+        SPDLOG_LOGGER_DEBUG(logger, "{}", records["frame"][0]);
+        SPDLOG_LOGGER_DEBUG(logger, "true");
+        return true;
+    }
+}
+
+/**
+ * 查询超时30s未执行的Command
+ * @param records 接收查询到的未执行命令数据
+ * @return true: 查询成功 false : 查询失败
+ */
+bool DB::queryUnexecutedCmd(std::unordered_map<std::string, std::vector<const char*>, sHash> &records) {
+    char sql[4096];
+    sprintf(sql, "SELECT id, cmd FROM cmd WHERE exe_status=0 AND datetime<= DATE_ADD(NOW(), INTERVAL 30 SECOND)");
+    records = mysql->readSql(sql);
+    if (records["cmd"].empty()) {
+        SPDLOG_LOGGER_DEBUG(logger, "false");
+        return false;
+    } else {
+        SPDLOG_LOGGER_DEBUG(logger, "{}", records["cmd"][0]);
+        SPDLOG_LOGGER_DEBUG(logger, "true");
+        return true;
+    }
+}
+
+/**
+ * 查询已执行，但是未通过MQTT发送的Command
+ * @param records 接收Commands
+ * @return true: 查询成功 false : 查询失败
+ */
+bool DB::queryUnSentCmd(std::unordered_map<std::string, std::vector<const char*>, sHash> &records) {
+    char sql[4096];
+    sprintf(sql, "SELECT id, cmd FROM cmd WHERE exe_status=1 AND send_status=0");
+    records = mysql->readSql(sql);
+    if (records["cmd"].empty()) {
+        SPDLOG_LOGGER_DEBUG(logger, "false");
+        return false;
+    } else {
+        SPDLOG_LOGGER_DEBUG(logger, "{}", records["cmd"][0]);
+        SPDLOG_LOGGER_DEBUG(logger, "true");
+        return true;
+    }
+}
+
+/**
+ * 将已经通过MQTT发送的数据标记为已发送
+ * @param id
+ * @return true: 更新成功 false: 更新失败
+ */
+bool DB::updateDataSendStatus(int id) {
+    char sql[4096];
+    sprintf(sql, "UPDATE data SET send_status=1 WHERE id=%d AND send_status=0", id);
+    if (mysql->updateSql(sql))
+        return false;
+    else
+        return true;
+}
+
+/**
+ * 改变执行状态或发送状态-->已执行或已发送
+ * @param cmd 被更新的指令记录的指令内容
+ * @param status_type 0: 更改执行状态 1: 更改发送状态
+ * @return true: 更改成功 false: 更改失败
+ */
+bool DB::updateCmdStatus(const char *cmd, int status_type) {
+    char sql[4096];
+    if (status_type == 0) { // 将执行状态改为已执行
+        sprintf(sql, "UPDATE cmd "
+                     "SET exe_status = %d WHERE cmd='%s' AND exe_status=0",
+                1, cmd);
+    } else { // 将已经执行的cmd的发送状态改为已发送
+        sprintf(sql, "UPDATE cmd "
+                     "SET send_status = %d WHERE cmd='%s' AND exe_status=1",
+                1, cmd);
+    }
+    if (mysql->updateSql(sql))
+        return false;
+    else
+        return true;
 }
 
 //// 由于向ClassA和ClassC下发的指令的格式不能相同，暂时不做时间间隔重发的功能

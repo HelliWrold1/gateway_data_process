@@ -361,7 +361,7 @@ bool Rules::genCommands(JsonStrConvertor *pSourceJsonStrConvertor, std::vector<s
             // 判断是否符合条件
             if (judgeConditions(source,i)){
                 this->judgeIOExcepts(source);
-                std::map<const std::string,std::vector<const char*> > frame;
+                std::unordered_map<std::string, std::vector<const char*>, sHash> frame;
                 IOExceptStatus_t io_except;
 
                 for (int j = 0; j < target_num; ++j) {

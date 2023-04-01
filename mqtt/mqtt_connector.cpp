@@ -117,7 +117,7 @@ int connectorPublish(const char* topic, const char *payload, int qos)
     }
     else
     {
-        SPDLOG_LOGGER_DEBUG(logger,"Succeed in sending message: '{}' , error code: '{}'\n", (char *)pubmsg.payload, rc);
+        SPDLOG_LOGGER_DEBUG(logger,"Succeed in sending topic '{}' message: '{}'\n", topic, (char *)pubmsg.payload);
         return MQTT_CONNECTOR_SUCCESS;
     }
 }

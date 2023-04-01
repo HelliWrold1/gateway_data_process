@@ -14,7 +14,7 @@
 #include<iostream>
 #include<mysql/mysql.h>
 #include<queue>
-#include<map>
+#include<unordered_map>
 #include<vector>
 #include<utility>
 #include<string>
@@ -22,12 +22,22 @@
 #include<thread>
 #include <spdlog/spdlog.h>
 
+// 无序map的hash函数
+struct sHash {
+    std::size_t operator()(const std::string& str) const {
+        std::size_t hash = 0;
+        for (const char& c : str) {
+            hash = hash * 31 + c;
+        }
+        return hash;
+    }
+};
 
 class MysqlPool {
 
 public:
     ~MysqlPool();
-    std::map<const std::string,std::vector<const char* > > readSql(const char* sql);//sql语句的执行函数
+    std::unordered_map<std::string, std::vector<const char*>, sHash> readSql(const char* sql);//sql语句的执行函数
     int createSql(const char* sql);
     bool updateSql(const char *sql);
     bool migrateSql(const char* sql);

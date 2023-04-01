@@ -1,13 +1,21 @@
 /*
  * Created by HelliWrold1 on 2023/1/21 17:08.
  */
+#define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_TRACE
 #include <stdio.h>
 #include "mqtt/mqtt_connector.h"
 #include "json/json_str_convertor.h"
 #include <string.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include "DB.h"
-#define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_TRACE
+#include "PthreadPool.h"
+
+typedef struct sPthreadPoolArgs {
+    std::string topicName;
+    std::string payload;
+//    char* topicName;
+//    MQTTAsync_message *message;
+}PthreadPoolArgs_t;
 
 static const char* g_topic_rcvdata = "uplinkFromNode/#";  // lorawan-server uplink topic
 static const char* g_topic_uplink = "uplinkToCloud";  // uplink to Cloud
@@ -18,18 +26,27 @@ static const int g_qos = 1;
 static char jsonfile[] = "../rule/rules.json";
 
 static DB *db;
-
+static PthreadPool pthreadPool;
+static int bridgeStatus = 1;
+static std::mutex bridge_mutes;
+static int preBridgeStatus;
 auto logger = spdlog::stdout_color_mt( "logger" );
 
-void eachConnectedCallback(void* context, char* cause);
-int msgArrivedCallback(void* context, char* topicName, int topicLen, MQTTAsync_message *message);
+void eachConnectedCallback(void *context, char *cause);
+int msgArrivedCallback(void *context, char *topicName, int topicLen, MQTTAsync_message *message);
+void processData(void *args); // 处理实时节点数据
+void resendUnsentData(void *args); // 断连重发
+void sendExecutedCmd(); // 向云端发送已经执行的命令
+void resendUnexecutedCmd(void *args); // 向节点重发命令
 
 int main() {
     // set logger
     logger->set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%l] [%@] [%!]: %v");
     logger->set_level(spdlog::level::debug);
 
-    printf("Hello, World!\n");
+    char buf[80];
+    SPDLOG_LOGGER_INFO(logger, "Current Path: {}", getcwd(buf, sizeof buf));
+
     MQTTConnector_t mqttConn;
     initMQTTConnector(&mqttConn);
 //    取消下面四句注释，可以更改客户端信息
@@ -42,6 +59,10 @@ int main() {
     startMQTTConnector();
 
     db = DB::getDB();
+
+    // 初始化线程池
+    pthreadPool.Init(8);
+    pthreadPool.AddTask(resendUnexecutedCmd, nullptr);
 
     std::vector<std::string> commands;
     Rules *rules = Rules::getRules(jsonfile);
@@ -71,23 +92,36 @@ void eachConnectedCallback(void* context, char* cause)
  * @return
  */
 int msgArrivedCallback(void* context, char* topicName, int topicLen, MQTTAsync_message *message) {
-    char* payload = (char*)message->payload;
+    PthreadPoolArgs_t *pthreadPoolArgs = new PthreadPoolArgs_t;
+    pthreadPoolArgs->topicName.assign(topicName);
+    pthreadPoolArgs->payload.assign((char*)message->payload);
+    pthreadPool.AddTask(processData,(void*)pthreadPoolArgs);
+
+    MQTTAsync_freeMessage(&message);
+    MQTTAsync_free(topicName);
+    return 1;
+}
+
+/**
+ * 线程池任务，用于处理数据
+ * @param args topicName、MQTTAsync_message
+ */
+void processData(void *args) {
+    PthreadPoolArgs_t *poolArgs = (PthreadPoolArgs_t*)args;
+    const char *topicName = poolArgs->topicName.data();
+    const char *payload = poolArgs->payload.data();
     SPDLOG_LOGGER_DEBUG(logger, "Message arrived:");
-    SPDLOG_LOGGER_DEBUG(logger, "topic: '{}'\tpayload: '{}'\t payloadlength:{}\n\n", topicName, (char *) message->payload,
-           message->payloadlen);
+    SPDLOG_LOGGER_DEBUG(logger, "topic: '{}'\tpayload: '{}'", poolArgs->topicName, poolArgs->payload);
+
     if (strstr(topicName,"uplinkFromNode")) {
-        // TODO 此处应为一个线程池添加任务
         JsonStrConvertor *pJsonStrConvertor = new JsonStrConvertor(payload);
 
         int auto_id;
         // 如果是传感器数据或时间间隔数据，则上传到云端
         if (pJsonStrConvertor->parsedData.datatype == TYPE_SENSOR_DATA ||
             pJsonStrConvertor->parsedData.datatype == TYPE_INTERVAL_TIME_DATA)
-                connectorPublish(g_topic_uplink, pJsonStrConvertor->str, g_qos);
-        auto_id = db->insertData(pJsonStrConvertor,1);
-        // TODO 根据配置文件判断规则
-        char buf[80];
-        SPDLOG_LOGGER_INFO(logger, "Current Path: {}", getcwd(buf, sizeof buf));
+            connectorPublish(g_topic_uplink, pJsonStrConvertor->str, g_qos);
+        auto_id = db->insertData(pJsonStrConvertor,bridgeStatus);
 
         std::vector<std::string> commands;
         Rules* rules = Rules::getRules();
@@ -122,15 +156,96 @@ int msgArrivedCallback(void* context, char* topicName, int topicLen, MQTTAsync_m
         }
     }
 
-
+    // 桥连接状态的改变
+    if (strstr(topicName, g_topic_bridgeStatus)) {
+        int nowStatus = atoi(payload);
+        if (nowStatus == 0)
+            preBridgeStatus = 1; // 曾经断连
+        if (bridgeStatus != nowStatus) {
+            bridge_mutes.lock();
+            if (bridgeStatus != nowStatus)
+                bridgeStatus = nowStatus;
+            bridge_mutes.unlock();
+        }
+        // 如果曾经断连，并且现在已经重新连接
+        if (preBridgeStatus && bridgeStatus) {
+            pthreadPool.AddTask(resendUnsentData, nullptr);
+        }
+    }
+    delete poolArgs;
 //// 由于向ClassA和ClassC下发的指令的格式不能相同，暂时不做时间间隔重发的功能
 //    // 将云端下发的时间间隔指令存入数据库
 //    if (strstr(topicName, g_topic_from_cloud)) {
 //        db->insertCmdFromCloud(payload);
 //    }
+}
 
-    MQTTAsync_freeMessage(&message);
-    MQTTAsync_free(topicName);
+/**
+ * 向云端发送断连期间未发送的数据
+ * @param args
+ */
+void resendUnsentData(void *args) {
+    if (preBridgeStatus == 1) // 曾经断连才重发
+        if (bridgeStatus == 0) {
+            return;
+        } else {
+            std::unordered_map<std::string, std::vector<const char*>, sHash> records;
+            while (db->queryUnsentData(records)) { // 只要有记录就一直查询和发送
+                int frame_num = records["frame"].size();
+                for (int i = 0; i < frame_num; ++i) {
+                    // 如果此时的桥仍连接，则将数据发送到云端
+                    if (bridgeStatus == 1) {
+                        connectorPublish(g_topic_uplink, records["frame"][i], g_qos);
+                        while( !db->updateDataSendStatus(atoi(records["id"][i])) ); // 一直尝试更新该id的记录，成功后跳出loop
+                    } else {
+                        return; // 桥接断开就结束本线程
+                    }
+                } // end for (int i = 0; i < frame_num; ++i)
+            } // end while (db->queryUnsentData(records))
+            // 无记录则结束线程
+            preBridgeStatus = 0; // 重置曾经断连的状态
+            return;
+        } // end if (bridgeStatus == 0)
+}
 
-    return 1;
+/**
+ * 向云端发送已经执行的命令
+ */
+void sendExecutedCmd() {
+    if (bridgeStatus == 0) {
+        return;
+    } else {
+        std::unordered_map<std::string, std::vector<const char*>, sHash> records;
+        while (db->queryUnSentCmd(records)) { // 只要有记录就一直查询和发送
+            int cmd_num = records["cmd"].size();
+            for (int i = 0; i < cmd_num; ++i) {
+                // 如果此时的桥仍连接，则将数据发送到云端
+                if (bridgeStatus == 1) {
+                    connectorPublish(g_topic_uplink, records["cmd"][i], g_qos);
+                    while(!db->updateCmdStatus(records["cmd"][i], 1)); // 一直尝试更新该cmd发送状态，成功后跳出loop
+                } else {
+                    return; // 桥接断开就结束本线程
+                }
+            } // end for (int i = 0; i < cmd_num; ++i)
+        } // end while (db->queryUnSentCmd(records))
+        return; // 无记录则结束线程
+    } // end if (bridgeStatus == 0)
+}
+
+/**
+ * 将未发送的指令下发
+ * @param args
+ */
+void resendUnexecutedCmd(void *args) {
+    std::unordered_map<std::string, std::vector<const char*>, sHash> records;
+    while (true) {
+        while (db->queryUnexecutedCmd(records)) { // 只要有记录就一直查询和发送
+            int cmd_num = records["cmd"].size();
+            for (int i = 0; i < cmd_num; ++i) {
+                connectorPublish(g_topic_downlink, records["cmd"][i], g_qos);
+            }
+        }
+        sendExecutedCmd();
+        sleep(5); // 间隔5s扫描一次数据库
+    }
 }
