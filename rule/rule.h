@@ -6,6 +6,17 @@
 #define GATEWAY_DATA_PROCESS_RULE_H
 
 #define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_TRACE
+#define RETRY_TIMES 20
+#define RETRY_INSTANCE_METHOD(n, func, this_ptr, ...) \
+do { \
+    int retry_count = 0; \
+    while (retry_count < (n)) { \
+        if ((this_ptr->func(__VA_ARGS__))) { \
+            break; \
+        } \
+        retry_count++; \
+    } \
+} while (0)
 
 #include <spdlog/spdlog.h>
 #include <vector>
@@ -129,10 +140,10 @@ private:
     TimeData_t m_time_data;
     static int m_rules_num;
     static int m_rules_index;
-    static std::map<const std::string ,Rule_t> m_rules;
-    static std::map<const std::string ,IOExceptStatus_t> m_excepts;
+    static std::map<const std::string, Rule_t> m_rules;
+    static std::map<const std::string, IOExceptStatus_t> m_excepts;
     static DB *m_db;
-    static std::mutex m_rules_lock; // 规则锁
+    static std::recursive_mutex m_rules_lock; // 规则锁,递归锁，加锁多少次就得解锁多少次，递归锁可以被调用的子函数继承
 };
 
 #endif //GATEWAY_DATA_PROCESS_RULE_H

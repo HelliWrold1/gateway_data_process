@@ -120,6 +120,7 @@ int DB::insertData(JsonStrConvertor *pJsonStrConvertor, int send_status)
 void DB::insertCmd(int data_id, const char *cmd)
 {
     char sql[4096];
+    // 如果已经存在，则更新其执行状态、发送状态以及时间戳
     sprintf(sql,"INSERT INTO cmd(data_id, cmd, exe_status, send_status) "
                 "VALUES(%d, '%s', 0, 0) "
                 "ON DUPLICATE KEY UPDATE"
@@ -128,7 +129,9 @@ void DB::insertCmd(int data_id, const char *cmd)
                 "datetime<NOW(), "
                 "NOW(), "
                 "datetime"
-                ")"
+                "),"
+                "`exe_status`=0,"
+                "`send_status`=0"
             , data_id, cmd);
     SPDLOG_LOGGER_DEBUG(logger, sql);
     mysql->createSql(sql);
@@ -163,7 +166,7 @@ bool DB::queryIOStatus(std::string devAddr, std::unordered_map<std::string, std:
  */
 bool DB::queryUnsentData(std::unordered_map<std::string, std::vector<std::string>, sHash> &records) {
     char sql[4096];
-    sprintf(sql, "SELECT id, frame FROM data WHERE send_status=0 AND datatype<2");
+    sprintf(sql, "SELECT id, frame FROM data WHERE send_status=0 AND data_type<2");
     SPDLOG_LOGGER_DEBUG(logger, sql);
     records = mysql->readSql(sql);
     if (records["frame"].empty()) {

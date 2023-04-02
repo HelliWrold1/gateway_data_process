@@ -24,36 +24,8 @@
     },
     "actions": {
       "0": {
-        "light": "close"
-      }
-    }
-  },
-  "1": {
-    "source": "3EB4A376",
-    "conditions": {
-      "0":{
-        "co2min": 0,
-        "co2max": 500,
-        "comin": 0,
-        "comax": 200,
-        "h2smin": 0,
-        "h2smax": 6000,
-        "nh3min": 0,
-        "nh3max": 1500,
-        "tempmin": 0,
-        "tempmax": 30,
-        "humimin": 0,
-        "humimax": 40,
-        "luxmin": 0,
-        "luxmax": 100
-      }
-    },
-    "targets": {
-      "0": ["B54E453C"]
-    },
-    "actions": {
-      "0": {
-        "fun": "close"
+        "light": "open",
+        "fun": "open"
       }
     }
   }

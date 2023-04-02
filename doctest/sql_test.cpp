@@ -14,14 +14,16 @@ TEST_CASE("TEST DB")
 {
     // set log
     auto logger  = spdlog::get("logger");
-    logger->set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%l] [%@] [%!]: %v");
+    logger->set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%l] [%@] [%t] [%!]: %v");
     logger->set_level(spdlog::level::debug);
     // get db
     DB* db = DB::getDB();
     int id;
     bool queryFlag;
+    bool updateFlag;
     std::string devaddr("B54E453C");
     std::unordered_map<std::string, std::vector<std::string>, sHash> frame;
+    std::unordered_map<std::string, std::vector<std::string>, sHash> records;
     char sensor_data[] = R"({
       "app": "Raspiber-handler",
       "battery": 0,
@@ -77,7 +79,7 @@ TEST_CASE("TEST DB")
     JsonStrConvertor *pJsonStrConvertor = new JsonStrConvertor(sensor_data);
     SUBCASE("test insert data")
     {
-        id = db->insertData(pJsonStrConvertor,1);
+        id = db->insertData(pJsonStrConvertor,0);
         CHECK(id != 0);
         pJsonStrConvertor->parseNodeUplink(time_data);
         id = db->insertData(pJsonStrConvertor,1);
@@ -118,11 +120,23 @@ TEST_CASE("TEST DB")
         db->insertData(pJsonStrConvertor,1);
         queryFlag = db->queryIOStatus("B54E453C",frame);
         CHECK(queryFlag == true);
+        sleep(30); // Sleep for 30 sec.
+        queryFlag = db->queryUnexecutedCmd(records); // Query The Command before 30s
+        CHECK(queryFlag == true);
+        queryFlag = db->queryUnsentData(records);
+        CHECK(queryFlag == true);
     }
 
     SUBCASE("test update data") {
-        db->updateCmdStatus(cmd_data,0);
-        db->updateCmdStatus(cmd_data,1);
-        db->updateCmdStatus(time_cmd_data,0);
+        updateFlag = db->updateCmdStatus(cmd_data,0);
+        CHECK(updateFlag == true);
+        queryFlag = db->queryUnSentCmd(records);
+        CHECK(queryFlag == true);
+        updateFlag = db->updateCmdStatus(cmd_data,1);
+        CHECK(queryFlag == true);
+        updateFlag = db->updateCmdStatus(time_cmd_data,0);
+        CHECK(queryFlag == true);
+        updateFlag = db->updateDataSendStatus(1);
+        CHECK(queryFlag == true);
     }
 }

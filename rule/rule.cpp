@@ -12,7 +12,7 @@ std::map<const std::string ,Rule_t> Rules::m_rules;
 std::map<const std::string ,IOExceptStatus_t> Rules::m_excepts;
 ParsedJsonRule_t Rules::m_json_rules;
 DB* Rules::m_db = DB::getDB();
-std::mutex Rules::m_rules_lock;
+std::recursive_mutex Rules::m_rules_lock;
 
 Rules::Rules() {
     m_rules_index = 0;
@@ -22,6 +22,7 @@ Rules::Rules() {
  * 从解析后的条件结构体中取出源节点（传感器节点）、条件（范围要求）、目标（关联的控制节点）、命令（控制节点的设备动作）
  */
 bool Rules::setRule() {
+    m_rules_lock.lock();
     // 递归读取规则
     if (m_rules_index < m_rules_num){
 
@@ -87,8 +88,11 @@ bool Rules::setRule() {
                 rule.actions.push_back(actions);
             }
         }
-
-        m_rules.insert({source,rule});
+//        if (m_rules.count(source))
+//            m_rules[source] = rule;
+//        else
+//            m_rules.insert({source,rule});
+        m_rules[source] = rule;
 
         // 读入规则的游标移动
         m_rules_index += 1;
@@ -131,10 +135,13 @@ Rules* Rules::getRules(char* jsonFilePath) {
         m_json_rules = parsedJsonRule;
     }
     m_rules_num = m_json_rules.rules.size();
-    if (setRule() == true)
+    if (setRule() == true) {
+        m_rules_lock.unlock(); // 规则锁解开，其他对象可以重新读取规则
         return getRules();
-    else
+    } else {
+        m_rules_lock.unlock(); // 规则锁解开，其他对象可以重新读取规则
         return nullptr; // 代表设置规则失败
+    }
 }
 
 Rules* Rules::getRules() {
@@ -256,6 +263,7 @@ void Rules::setSourceData(JsonStrConvertor *pJsonStrConvertor) {
  * @return 返回是否符合条件
  */
 bool Rules::judgeIOExcepts(std::string &source) {
+    m_rules_lock.lock();
     bool judgeIOFlag;
 
     int cond_num;
@@ -315,7 +323,7 @@ bool Rules::judgeIOExcepts(std::string &source) {
                     m_excepts[ m_rules[source].targets[j] ].io5 = false;
                 }
             }
-
+    m_rules_lock.unlock();
 //// 可以添加更多的io动作，下面是个示例
 //            if (action.curtain == 1) {
 //                for (int j = 0; j < target_num; ++j) {
@@ -340,6 +348,7 @@ bool Rules::judgeIOExcepts(std::string &source) {
 }
 
 bool Rules::genCommands(JsonStrConvertor *pSourceJsonStrConvertor, std::vector<std::string> &commands) {
+    m_rules_lock.lock();
     bool genFlag;
     std::string source(pSourceJsonStrConvertor->parsedData.devaddr);
     std::stringstream command;
@@ -444,37 +453,33 @@ bool Rules::genCommands(JsonStrConvertor *pSourceJsonStrConvertor, std::vector<s
 
     } else if (m_datatype == 0x01) { // elseif if (m_datatype == 0x01)
         // 处理控制节点数据
-        if (m_control_data.io4 == false) {
-            command.str("");
-            command << R"({ "devaddr":")" << source << R"(", "data":"FA4F", "confirmed":true, "port":2, "time":"immediately" })";
-            m_db->updateCmdStatus(command.str().data(), 0);
-        }
         if (m_control_data.io4 == true) {
             command.str("");
-            command << R"({ "devaddr":")" << source << R"(", "data":"FA40", "confirmed":true, "port":2, "time":"immediately" })";
-            m_db->updateCmdStatus(command.str().data(), 0);
-        }
-        if (m_control_data.io5 == false) {
+            command << R"({ "devaddr":")" << source << R"(", "data":"FA4F", "confirmed":true, "port":2, "time":"immediately" })";
+        } else {
             command.str("");
-            command << R"({ "devaddr":")" << source << R"(", "data":"FA5F", "confirmed":true, "port":2, "time":"immediately" })";
-            m_db->updateCmdStatus(command.str().data(), 0);
+            command << R"({ "devaddr":")" << source << R"(", "data":"FA40", "confirmed":true, "port":2, "time":"immediately" })";
         }
+        RETRY_INSTANCE_METHOD(RETRY_TIMES, updateCmdStatus, m_db, command.str().data(), 0);
+
         if (m_control_data.io5 == true) {
             command.str("");
+            command << R"({ "devaddr":")" << source << R"(", "data":"FA5F", "confirmed":true, "port":2, "time":"immediately" })";
+        } else {
+            command.str("");
             command << R"({ "devaddr":")" << source << R"(", "data":"FA50", "confirmed":true, "port":2, "time":"immediately" })";
-            m_db->updateCmdStatus(command.str().data(), 0);
         }
+        RETRY_INSTANCE_METHOD(RETRY_TIMES, updateCmdStatus, m_db, command.str().data(), 0);
+
 //// 可以添加其他IO，下面是个示例
-//        if (m_control_data.io9 == false) {
-//            command.str("");
-//            command << R"({ "devaddr":")" << source << R"(", "data":"FA9F", "confirmed":true, "port":2, "time":"immediately" })";
-//            m_db->updateCmdStatus(command.str().data(), 0);
-//        }
 //        if (m_control_data.io9 == true) {
 //            command.str("");
+//            command << R"({ "devaddr":")" << source << R"(", "data":"FA9F", "confirmed":true, "port":2, "time":"immediately" })";
+//        } else {
+//            command.str("");
 //            command << R"({ "devaddr":")" << source << R"(", "data":"FA90", "confirmed":true, "port":2, "time":"immediately" })";
-//            m_db->updateCmdStatus(command.str().data(), 0);
 //        }
+//            m_db->updateCmdStatus(command.str().data(), 0);
     } else if (m_datatype == 0x1E) { // elseif if (m_datatype == 0x01)
 //// 由于向ClassA和ClassC下发的指令的格式不能相同，暂时不做时间间隔重发的功能
 //        char intervalTime[15];
@@ -486,7 +491,7 @@ bool Rules::genCommands(JsonStrConvertor *pSourceJsonStrConvertor, std::vector<s
 //        m_db->updateCmdStatus(command.str().data(), 0);
 //        m_db->updateCmdStatus(command.str().data(), 1);
     } // end if (m_datatype == 0x01)
-
+    m_rules_lock.unlock();
     return genFlag;
 }
 

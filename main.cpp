@@ -195,7 +195,8 @@ void resendUnsentData(void *args) {
                     // 如果此时的桥仍连接，则将数据发送到云端
                     if (bridgeStatus == 1) {
                         if (connectorPublish(g_topic_uplink, records["frame"][i].data(), g_qos) == MQTT_CONNECTOR_SUCCESS) {
-                            while( !db->updateDataSendStatus(atoi(records["id"][i].data())) ); // 一直尝试更新该id的记录，成功后跳出loop
+                            RETRY_INSTANCE_METHOD(RETRY_TIMES, updateDataSendStatus, db, atoi(records["id"][i].data()));
+//                            while( !db->updateDataSendStatus(atoi(records["id"][i].data())) ); // 一直尝试更新该id的记录，成功后跳出loop
                         }
                     } else {
                         return; // 桥接断开就结束本线程
@@ -222,7 +223,8 @@ void sendExecutedCmd() {
                 // 如果此时的桥仍连接，则将数据发送到云端
                 if (bridgeStatus == 1) {
                     if (connectorPublish(g_topic_uplink, records["cmd"][i].data(), g_qos) == MQTT_CONNECTOR_SUCCESS) {
-                        while(!db->updateCmdStatus(records["cmd"][i].data(), 1)); // 一直尝试更新该cmd发送状态，成功后跳出loop
+                        RETRY_INSTANCE_METHOD(RETRY_TIMES, updateCmdStatus, db, records["cmd"][i].data(), 1);
+//                        while(!db->updateCmdStatus(records["cmd"][i].data(), 1)); // 一直尝试更新该cmd发送状态，成功后跳出loop
                     }
                 } else {
                     return; // 桥接断开就结束本线程
@@ -244,7 +246,8 @@ void resendUnexecutedCmd(void *args) {
             int cmd_num = records["cmd"].size();
             for (int i = 0; i < cmd_num; ++i) {
                 if (connectorPublish(g_topic_downlink, records["cmd"][i].data(), g_qos) == MQTT_CONNECTOR_SUCCESS) {
-                    while (!db->updateCmdDatetime(atoi( records["id"][i].data()) )); // 更新命令时间戳，用于说明该命令已经重新下发过了
+                    RETRY_INSTANCE_METHOD(RETRY_TIMES, updateCmdDatetime, db, atoi( records["id"][i].data()));
+//                    while (!db->updateCmdDatetime(atoi( records["id"][i].data()) )); // 更新命令时间戳，用于说明该命令已经重新下发过了
                 }
             }
         }
