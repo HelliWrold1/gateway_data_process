@@ -21,7 +21,7 @@ TEST_CASE("TEST DB")
     int id;
     bool queryFlag;
     std::string devaddr("B54E453C");
-    std::unordered_map<std::string, std::vector<const char*>, sHash> frame;
+    std::unordered_map<std::string, std::vector<std::string>, sHash> frame;
     char sensor_data[] = R"({
       "app": "Raspiber-handler",
       "battery": 0,

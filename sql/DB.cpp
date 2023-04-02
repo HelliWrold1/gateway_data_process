@@ -10,15 +10,12 @@ DB * db;
 static auto logger = spdlog::get("logger");
 std::mutex DB::m_object_lock;
 
-DB::DB()
-{
+DB::DB() {
     mysql = MysqlPool::getMysqlPoolObject();
-    mysql->setParameter("localhost","paho","process","test",0,NULL,0,100);
     this->migrate();
 }
 
-DB::~DB()
-{
+DB::~DB() {
     delete mysql;
 }
 
@@ -34,6 +31,7 @@ DB* DB::getDB(void) {
 
 void DB::migrate()
 {
+    mysql->setParameter("localhost","paho","process","test",0,NULL,0,30);
     mysql->migrateSql(R"(CREATE TABLE IF NOT EXISTS `data`  (
                             `id` int(11) NOT NULL AUTO_INCREMENT,
                             `dev_addr` varchar(255) CHARACTER SET utf8 NOT NULL,
@@ -109,8 +107,9 @@ int DB::insertData(JsonStrConvertor *pJsonStrConvertor, int send_status)
                                  ")",
                                 pJsonStrConvertor->parsedData.devaddr,pJsonStrConvertor->parsedData.datatype,
                                 pJsonStrConvertor->str, pJsonStrConvertor->str, send_status);
+    SPDLOG_LOGGER_DEBUG(logger, sql);
     auto_id = mysql->createSql(sql);
-    SPDLOG_LOGGER_DEBUG(logger,"[DB]: auto increment id:{}", auto_id);
+    SPDLOG_LOGGER_DEBUG(logger,"Auto increment id:{}", auto_id);
     return auto_id;
 }
 /**
@@ -131,6 +130,7 @@ void DB::insertCmd(int data_id, const char *cmd)
                 "datetime"
                 ")"
             , data_id, cmd);
+    SPDLOG_LOGGER_DEBUG(logger, sql);
     mysql->createSql(sql);
 }
 
@@ -140,9 +140,10 @@ void DB::insertCmd(int data_id, const char *cmd)
  * @param records 接收记录的map
  * @return true: 查询成功 false: 查询失败
  */
-bool DB::queryIOStatus(std::string devAddr, std::unordered_map<std::string, std::vector<const char*>, sHash> &records) {
+bool DB::queryIOStatus(std::string devAddr, std::unordered_map<std::string, std::vector<std::string>, sHash> &records) {
     char sql[4096];
     sprintf(sql, "SELECT frame FROM data WHERE dev_addr=\"%s\" AND data_type=1 ORDER BY id DESC LIMIT 1", devAddr.data());
+    SPDLOG_LOGGER_DEBUG(logger, sql);
     records = mysql->readSql(sql);
     if (records["frame"].empty()){
         SPDLOG_LOGGER_DEBUG(logger, "false");
@@ -160,9 +161,10 @@ bool DB::queryIOStatus(std::string devAddr, std::unordered_map<std::string, std:
  * @param records 接收查询到的传感器数据
  * @return true: 查询成功 false: 查询失败
  */
-bool DB::queryUnsentData(std::unordered_map<std::string, std::vector<const char*>, sHash> &records) {
+bool DB::queryUnsentData(std::unordered_map<std::string, std::vector<std::string>, sHash> &records) {
     char sql[4096];
     sprintf(sql, "SELECT id, frame FROM data WHERE send_status=0 AND datatype<2");
+    SPDLOG_LOGGER_DEBUG(logger, sql);
     records = mysql->readSql(sql);
     if (records["frame"].empty()) {
         SPDLOG_LOGGER_DEBUG(logger, "false");
@@ -179,9 +181,10 @@ bool DB::queryUnsentData(std::unordered_map<std::string, std::vector<const char*
  * @param records 接收查询到的未执行命令数据
  * @return true: 查询成功 false : 查询失败
  */
-bool DB::queryUnexecutedCmd(std::unordered_map<std::string, std::vector<const char*>, sHash> &records) {
+bool DB::queryUnexecutedCmd(std::unordered_map<std::string, std::vector<std::string>, sHash> &records) {
     char sql[4096];
-    sprintf(sql, "SELECT id, cmd FROM cmd WHERE exe_status=0 AND datetime<= DATE_ADD(NOW(), INTERVAL 30 SECOND)");
+    sprintf(sql, "SELECT id, cmd FROM cmd WHERE exe_status=0 AND datetime <= DATE_ADD(NOW(), INTERVAL -30 SECOND)");
+    SPDLOG_LOGGER_DEBUG(logger, sql);
     records = mysql->readSql(sql);
     if (records["cmd"].empty()) {
         SPDLOG_LOGGER_DEBUG(logger, "false");
@@ -198,9 +201,10 @@ bool DB::queryUnexecutedCmd(std::unordered_map<std::string, std::vector<const ch
  * @param records 接收Commands
  * @return true: 查询成功 false : 查询失败
  */
-bool DB::queryUnSentCmd(std::unordered_map<std::string, std::vector<const char*>, sHash> &records) {
+bool DB::queryUnSentCmd(std::unordered_map<std::string, std::vector<std::string>, sHash> &records) {
     char sql[4096];
     sprintf(sql, "SELECT id, cmd FROM cmd WHERE exe_status=1 AND send_status=0");
+    SPDLOG_LOGGER_DEBUG(logger, sql);
     records = mysql->readSql(sql);
     if (records["cmd"].empty()) {
         SPDLOG_LOGGER_DEBUG(logger, "false");
@@ -220,6 +224,7 @@ bool DB::queryUnSentCmd(std::unordered_map<std::string, std::vector<const char*>
 bool DB::updateDataSendStatus(int id) {
     char sql[4096];
     sprintf(sql, "UPDATE data SET send_status=1 WHERE id=%d AND send_status=0", id);
+    SPDLOG_LOGGER_DEBUG(logger, sql);
     if (mysql->updateSql(sql))
         return false;
     else
@@ -243,6 +248,22 @@ bool DB::updateCmdStatus(const char *cmd, int status_type) {
                      "SET send_status = %d WHERE cmd='%s' AND exe_status=1",
                 1, cmd);
     }
+    SPDLOG_LOGGER_DEBUG(logger, sql);
+    if (mysql->updateSql(sql))
+        return false;
+    else
+        return true;
+}
+
+/**
+ * 更新指令的时间戳，用于重发判断
+ * @param id
+ * @return true: 更新成功 false: 更新失败
+ */
+bool DB::updateCmdDatetime(int id) {
+    char sql[4096];
+    sprintf(sql, "UPDATE cmd SET datetime=NOW() WHERE id=%d", id);
+    SPDLOG_LOGGER_DEBUG(logger, sql);
     if (mysql->updateSql(sql))
         return false;
     else

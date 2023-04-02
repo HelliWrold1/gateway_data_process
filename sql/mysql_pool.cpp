@@ -153,9 +153,9 @@ void MysqlPool::close(MYSQL* conn) {
  * @param sql
  * @return 存储记录的map 类型：std::map< const std::string, std::vector<const char*>, ReadSqlMapCompare >
  */
-std::unordered_map<std::string, std::vector<const char*>, sHash>  MysqlPool::readSql(const char* sql) {
+std::unordered_map<std::string, std::vector<std::string>, sHash>  MysqlPool::readSql(const char* sql) {
     MYSQL* conn = getOneConnect();
-    std::unordered_map<std::string, std::vector<const char*>, sHash> results;
+    std::unordered_map<std::string, std::vector<std::string>, sHash> results;
     if (conn) {
         if (mysql_query(conn,sql) == 0) {
             MYSQL_RES *res = mysql_store_result(conn);
@@ -164,28 +164,27 @@ std::unordered_map<std::string, std::vector<const char*>, sHash>  MysqlPool::rea
                 std::vector<std::string> fields;
                 while ((field = mysql_fetch_field(res))) {
                     fields.push_back(std::string(field->name));
-                    results.insert(make_pair(field->name,std::vector<const char*>()));
+                    results.insert(make_pair(field->name,std::vector<std::string>()));
                 }
                 MYSQL_ROW row;
                 while ((row = mysql_fetch_row(res))) {
                     unsigned int i = 0;
                     for (int j = 0; j < fields.size(); ++j) {
-                        results[fields[i]].push_back(row[i++]);
+                        results[fields[i]].push_back(std::string(row[i++]));
                     }
                 }
                 mysql_free_result(res);
-                SPDLOG_LOGGER_DEBUG(logger,"[DB]: {}", sql);
             } else {
                 if (mysql_field_count(conn) != 0)
-                    SPDLOG_LOGGER_ERROR(logger,"[DB]: {}", mysql_error(conn));
+                    SPDLOG_LOGGER_ERROR(logger, mysql_error(conn));
             }
         } else {
-            SPDLOG_LOGGER_ERROR(logger,"[DB]: {}", mysql_error(conn));
-            SPDLOG_LOGGER_ERROR(logger,"[DB]: {}", sql);
+            SPDLOG_LOGGER_ERROR(logger, mysql_error(conn));
+            SPDLOG_LOGGER_ERROR(logger, sql);
         }
         close(conn);
     } else {
-        SPDLOG_LOGGER_ERROR(logger,"[DB]: {}", mysql_error(conn));
+        SPDLOG_LOGGER_ERROR(logger, mysql_error(conn));
     }
     return results;
 }
@@ -199,17 +198,14 @@ int MysqlPool::createSql(const char* sql){
     MYSQL* conn = getOneConnect();
     int auto_id;
     if (conn) {
-        if (mysql_query(conn,sql) == 0) {
-            SPDLOG_LOGGER_DEBUG(logger,"[DB]: {}", sql);
-        }
-        else{
-            SPDLOG_LOGGER_ERROR(logger,"[DB]: {}", mysql_error(conn));
-            SPDLOG_LOGGER_INFO(logger,"[DB]: {}", sql);
+        if (mysql_query(conn,sql)) {
+            SPDLOG_LOGGER_ERROR(logger, mysql_error(conn));
+            SPDLOG_LOGGER_INFO(logger, sql);
             close(conn);
             return 0;
         }
         if (mysql_query(conn,"SELECT LAST_INSERT_ID();") == 0){
-            SPDLOG_LOGGER_DEBUG(logger,"[DB]: {}", sql);
+            SPDLOG_LOGGER_DEBUG(logger, sql);
             MYSQL_RES *res = mysql_store_result(conn);
             MYSQL_ROW row;
             row = mysql_fetch_row(res);
@@ -219,8 +215,8 @@ int MysqlPool::createSql(const char* sql){
         }
         else
         {
-            SPDLOG_LOGGER_ERROR(logger,"[DB]: {}", mysql_error(conn));
-            SPDLOG_LOGGER_INFO(logger,"[DB]: {}", sql);
+            SPDLOG_LOGGER_ERROR(logger, mysql_error(conn));
+            SPDLOG_LOGGER_INFO(logger, sql);
             close(conn);
             return 0;
         }
@@ -236,17 +232,14 @@ int MysqlPool::createSql(const char* sql){
 bool MysqlPool::updateSql(const char *sql) {
     MYSQL* conn = getOneConnect();
     if (conn) {
-        if (mysql_query(conn,sql) == 0) {
-            SPDLOG_LOGGER_DEBUG(logger,"[DB]: {}", sql);
-            close(conn);
-            return 0;
-        }
-        else{
-            SPDLOG_LOGGER_INFO(logger,"[DB]: {}", sql);
-            SPDLOG_LOGGER_ERROR(logger,"[DB]: {}", mysql_error(conn));
+        if (mysql_query(conn,sql)) {
+            SPDLOG_LOGGER_INFO(logger, sql);
+            SPDLOG_LOGGER_ERROR(logger, mysql_error(conn));
             close(conn);
             return 1;
         }
+        close(conn);
+        return 0;
     }
     return 1;
 }
@@ -261,11 +254,12 @@ bool MysqlPool::migrateSql(const char* sql)
     MYSQL* conn = getOneConnect();
     if (conn) {
         if (mysql_query(conn, sql) == 0) {
-            SPDLOG_LOGGER_DEBUG(logger, "[DB]:{}", sql);
+            SPDLOG_LOGGER_DEBUG(logger, sql);
+            close(conn);
             return true;
         } else {
-            SPDLOG_LOGGER_ERROR(logger, "[DB]: {}", mysql_error(conn));
-            SPDLOG_LOGGER_INFO(logger,"[DB]: {}", sql);
+            SPDLOG_LOGGER_ERROR(logger, mysql_error(conn));
+            SPDLOG_LOGGER_INFO(logger, sql);
             close(conn);
             return false;
         }

@@ -2,6 +2,7 @@
  * Created by HelliWrold1 on 2023/1/21 17:08.
  */
 #define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_TRACE
+#define SCAN_DB_SECOND (10)
 #include <stdio.h>
 #include "mqtt/mqtt_connector.h"
 #include "json/json_str_convertor.h"
@@ -13,8 +14,6 @@
 typedef struct sPthreadPoolArgs {
     std::string topicName;
     std::string payload;
-//    char* topicName;
-//    MQTTAsync_message *message;
 }PthreadPoolArgs_t;
 
 static const char* g_topic_rcvdata = "uplinkFromNode/#";  // lorawan-server uplink topic
@@ -41,7 +40,7 @@ void resendUnexecutedCmd(void *args); // 向节点重发命令
 
 int main() {
     // set logger
-    logger->set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%l] [%@] [%!]: %v");
+    logger->set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%l] [%@] [%t] [%!]: %v");
     logger->set_level(spdlog::level::debug);
 
     char buf[80];
@@ -62,7 +61,6 @@ int main() {
 
     // 初始化线程池
     pthreadPool.Init(8);
-    pthreadPool.AddTask(resendUnexecutedCmd, nullptr);
 
     std::vector<std::string> commands;
     Rules *rules = Rules::getRules(jsonfile);
@@ -80,6 +78,7 @@ void eachConnectedCallback(void* context, char* cause)
     connectorSubscribe(g_topic_rcvdata, g_qos);
     connectorSubscribe(g_topic_bridgeStatus, g_qos);
     connectorSubscribe(g_topic_rules_from_cloud, g_qos);
+    pthreadPool.AddTask(resendUnexecutedCmd, nullptr); // 连接成功后开始监视未执行的Command
     SPDLOG_LOGGER_DEBUG(logger, "Connection successful.");
 }
 
@@ -189,14 +188,15 @@ void resendUnsentData(void *args) {
         if (bridgeStatus == 0) {
             return;
         } else {
-            std::unordered_map<std::string, std::vector<const char*>, sHash> records;
+            std::unordered_map<std::string, std::vector<std::string>, sHash> records;
             while (db->queryUnsentData(records)) { // 只要有记录就一直查询和发送
                 int frame_num = records["frame"].size();
                 for (int i = 0; i < frame_num; ++i) {
                     // 如果此时的桥仍连接，则将数据发送到云端
                     if (bridgeStatus == 1) {
-                        connectorPublish(g_topic_uplink, records["frame"][i], g_qos);
-                        while( !db->updateDataSendStatus(atoi(records["id"][i])) ); // 一直尝试更新该id的记录，成功后跳出loop
+                        if (connectorPublish(g_topic_uplink, records["frame"][i].data(), g_qos) == MQTT_CONNECTOR_SUCCESS) {
+                            while( !db->updateDataSendStatus(atoi(records["id"][i].data())) ); // 一直尝试更新该id的记录，成功后跳出loop
+                        }
                     } else {
                         return; // 桥接断开就结束本线程
                     }
@@ -215,14 +215,15 @@ void sendExecutedCmd() {
     if (bridgeStatus == 0) {
         return;
     } else {
-        std::unordered_map<std::string, std::vector<const char*>, sHash> records;
+        std::unordered_map<std::string, std::vector<std::string>, sHash> records;
         while (db->queryUnSentCmd(records)) { // 只要有记录就一直查询和发送
             int cmd_num = records["cmd"].size();
             for (int i = 0; i < cmd_num; ++i) {
                 // 如果此时的桥仍连接，则将数据发送到云端
                 if (bridgeStatus == 1) {
-                    connectorPublish(g_topic_uplink, records["cmd"][i], g_qos);
-                    while(!db->updateCmdStatus(records["cmd"][i], 1)); // 一直尝试更新该cmd发送状态，成功后跳出loop
+                    if (connectorPublish(g_topic_uplink, records["cmd"][i].data(), g_qos) == MQTT_CONNECTOR_SUCCESS) {
+                        while(!db->updateCmdStatus(records["cmd"][i].data(), 1)); // 一直尝试更新该cmd发送状态，成功后跳出loop
+                    }
                 } else {
                     return; // 桥接断开就结束本线程
                 }
@@ -237,15 +238,18 @@ void sendExecutedCmd() {
  * @param args
  */
 void resendUnexecutedCmd(void *args) {
-    std::unordered_map<std::string, std::vector<const char*>, sHash> records;
+    std::unordered_map<std::string, std::vector<std::string>, sHash> records;
     while (true) {
         while (db->queryUnexecutedCmd(records)) { // 只要有记录就一直查询和发送
             int cmd_num = records["cmd"].size();
             for (int i = 0; i < cmd_num; ++i) {
-                connectorPublish(g_topic_downlink, records["cmd"][i], g_qos);
+                if (connectorPublish(g_topic_downlink, records["cmd"][i].data(), g_qos) == MQTT_CONNECTOR_SUCCESS) {
+                    while (!db->updateCmdDatetime(atoi( records["id"][i].data()) )); // 更新命令时间戳，用于说明该命令已经重新下发过了
+                }
             }
         }
         sendExecutedCmd();
-        sleep(5); // 间隔5s扫描一次数据库
+        SPDLOG_LOGGER_INFO(logger, "Sleep for {} sec.", SCAN_DB_SECOND);
+        sleep(SCAN_DB_SECOND); // 间隔5s扫描一次数据库
     }
 }

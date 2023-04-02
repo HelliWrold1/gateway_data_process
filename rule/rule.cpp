@@ -361,7 +361,7 @@ bool Rules::genCommands(JsonStrConvertor *pSourceJsonStrConvertor, std::vector<s
             // 判断是否符合条件
             if (judgeConditions(source,i)){
                 this->judgeIOExcepts(source);
-                std::unordered_map<std::string, std::vector<const char*>, sHash> frame;
+                std::unordered_map<std::string, std::vector<std::string>, sHash> frame;
                 IOExceptStatus_t io_except;
 
                 for (int j = 0; j < target_num; ++j) {
@@ -373,8 +373,8 @@ bool Rules::genCommands(JsonStrConvertor *pSourceJsonStrConvertor, std::vector<s
                     if (m_db->queryIOStatus(m_rules[source].targets[j], frame)) {
                         // 拿到目前IO状态，与期望IO对比
                         JsonStrConvertor *pJsonStrConvertor = new JsonStrConvertor();
-                        const char *io_status_str = frame["frame"][0];
-                        pJsonStrConvertor->parseNodeUplink(io_status_str);
+                        std::string io_status_str = frame["frame"][0];
+                        pJsonStrConvertor->parseNodeUplink(io_status_str.data());
 
                         if (pJsonStrConvertor->parsedData.io4 != io_except.io4) {
                             command.str(""); // reset string stream

@@ -37,7 +37,7 @@ class MysqlPool {
 
 public:
     ~MysqlPool();
-    std::unordered_map<std::string, std::vector<const char*>, sHash> readSql(const char* sql);//sql语句的执行函数
+    std::unordered_map<std::string, std::vector<std::string>, sHash> readSql(const char* sql);//sql语句的执行函数
     int createSql(const char* sql);
     bool updateSql(const char *sql);
     bool migrateSql(const char* sql);
