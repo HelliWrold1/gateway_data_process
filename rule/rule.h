@@ -121,18 +121,18 @@ typedef struct sRule{
 class Rules {
 public:
     static Rules* getRules();
-    static bool setRule();
     static Rules* getRules(char* jsonFilePath);
     void setSourceData(JsonStrConvertor *pJsonStrConvertor);
-    bool judgeIOExcepts(std::string &source);
     bool genCommands(JsonStrConvertor *pSourceJsonStrConvertor, std::vector<std::string> &commands);
 private:
     Rules();
+    static bool setRule();
     static void judgeAction(int &device, std::string &action, int &cmd_index);
-    bool isAtomicConditionValid(double &range_num);
+    bool judgeConditions(std::string &source, int &index);
+    bool judgeIOExcepts(std::string &source);
     bool judgeGtRange(double &source, double &gt_range,bool &action_flag);
     bool judgeLtRange(double &source, double &lt_range, bool &action_flag);
-    bool judgeConditions(std::string &source, int &index);
+    bool isAtomicConditionValid(double &range_num);
     static ParsedJsonRule_t m_json_rules;
     int m_datatype;
     SensorData_t m_sensor_data;
