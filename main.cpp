@@ -7,7 +7,9 @@
 #include "mqtt/mqtt_connector.h"
 #include "json/json_str_convertor.h"
 #include <string.h>
+#include <spdlog/spdlog.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
+#include <spdlog/sinks/rotating_file_sink.h>
 #include "DB.h"
 #include "PthreadPool.h"
 
@@ -29,7 +31,11 @@ static PthreadPool pthreadPool;
 static int bridgeStatus = 1;
 static std::mutex bridge_mutes;
 static int preBridgeStatus;
-auto logger = spdlog::stdout_color_mt( "logger" );
+// 输出到控制台
+//auto logger = spdlog::stdout_color_mt( "logger" );
+// 输出到滚动日志文件
+auto logger = spdlog::rotating_logger_mt("logger",
+                 "/home/pi/gateway-data-process/log/gateway.log",1024*1024 * 5,3);
 
 void eachConnectedCallback(void *context, char *cause);
 int msgArrivedCallback(void *context, char *topicName, int topicLen, MQTTAsync_message *message);
@@ -118,7 +124,8 @@ void processData(void *args) {
         int auto_id;
         // 如果是传感器数据或时间间隔数据，则上传到云端
         if (pJsonStrConvertor->parsedData.datatype == TYPE_SENSOR_DATA ||
-            pJsonStrConvertor->parsedData.datatype == TYPE_INTERVAL_TIME_DATA)
+            pJsonStrConvertor->parsedData.datatype == TYPE_INTERVAL_TIME_DATA ||
+            pJsonStrConvertor->parsedData.datatype == TYPE_CONTROL_DATA) // 控制节点数据是否上传
             connectorPublish(g_topic_uplink, pJsonStrConvertor->str, g_qos);
         auto_id = db->insertData(pJsonStrConvertor,bridgeStatus);
 
@@ -248,7 +255,7 @@ void resendUnexecutedCmd(void *args) {
                 }
             }
         }
-        sendExecutedCmd();
+//        sendExecutedCmd();
         SPDLOG_LOGGER_INFO(logger, "Sleep for {} sec.", SCAN_DB_SECOND);
         sleep(SCAN_DB_SECOND); // 间隔5s扫描一次数据库
     }

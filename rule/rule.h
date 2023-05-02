@@ -114,7 +114,7 @@ public:
 
 typedef struct sRule{
     std::vector<Conditions_t> conditions;
-    std::vector<std::string> targets;
+    std::vector<std::string> targets; // 这里应该是二维数组，一个序号对应一组targets：std::vector<std::vector<std::string>> targets;
     std::vector<Actions_t> actions;
 }Rule_t;
 

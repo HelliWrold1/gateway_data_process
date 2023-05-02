@@ -284,7 +284,7 @@ bool Rules::judgeIOExcepts(std::string &source) {
     for (int i = 0; i < cond_num; ++i) {
         Actions_t action;
         if (judgeConditions(source,i)) {
-            // 初始化本次action
+            // 初始化本次action，取出条件组对应的动作组
             action.light = m_rules[source].actions[i].light;
             action.fun = m_rules[source].actions[i].fun;
 //// 添加规则的动作的示例
@@ -293,7 +293,7 @@ bool Rules::judgeIOExcepts(std::string &source) {
             if (action.light == 1) {
                 for (int j = 0; j < target_num; ++j) {
                     // 如果期望值里没有某ControlNode的期望值，那么新建
-                    if ( m_excepts.count(m_rules[source].targets[j]) )
+                    if ( m_excepts.count(m_rules[source].targets[j]) ) // TODO 这里应该是对应目标组，而不是某个目标
                         m_excepts.insert({m_rules[source].targets[j], io_except});
                     m_excepts[ m_rules[source].targets[j] ].io4 = true;
                 }
@@ -368,12 +368,12 @@ bool Rules::genCommands(JsonStrConvertor *pSourceJsonStrConvertor, std::vector<s
 
         for (int i = 0; i < cond_num; ++i) {
             // 判断是否符合条件
-            if (judgeConditions(source,i)){
-                this->judgeIOExcepts(source);
+            if (judgeConditions(source,i)){ // 判断条件组的第n个条件
+                this->judgeIOExcepts(source); // 这个是根据多个条件组和各自对应的动作组生成期望IO，目前bug是targets数据类型设置错误，好改
                 std::unordered_map<std::string, std::vector<std::string>, sHash> frame;
                 IOExceptStatus_t io_except;
 
-                for (int j = 0; j < target_num; ++j) {
+                for (int j = 0; j < target_num; ++j) { // TODO 这里有bug，应该是第n个条件组和第n个target组合
 
                     io_except = m_excepts[ m_rules[source].targets[j] ]; // 拿到期望io
                     target.assign(m_rules[source].targets[j]); // 将接收命令的nodeID取出
