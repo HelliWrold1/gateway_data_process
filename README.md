@@ -2,6 +2,8 @@
 
 MariaDB/MySQL: https://mariadb.com/ or https://www.mysql.com/
 
+sx1302 driver: https://github.com/HelliWrold1/sx1302_hal
+
 lorawan-server: https://github.com/gotthardp/lorawan-server
 
 mosquitto: https://github.com/eclipse/mosquitto
