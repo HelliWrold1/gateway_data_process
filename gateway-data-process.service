@@ -1,0 +1,14 @@
+[Unit] 
+Description=gateway data process
+Wants=network.target 
+After=network.target 
+
+[Service] 
+ExecStart=/home/pi/gateway-data-process/gdpStart.sh 
+ExecReload=/bin/kill -HUP $MAINPID 
+Restart=on-failure 
+KillMode=process 
+RestartSec=40s 
+
+[Install]
+WantedBy=multi-user.target

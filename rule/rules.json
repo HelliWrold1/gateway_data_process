@@ -24,8 +24,8 @@
     },
     "actions": {
       "0": {
-        "light": "open",
-        "fun": "open"
+        "light": "close",
+        "fun": "close"
       }
     }
   }
