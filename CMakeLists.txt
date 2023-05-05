@@ -22,7 +22,6 @@ include_directories(
         rule
 )
 add_subdirectory(sql)
-add_subdirectory(log)
 add_subdirectory(mqtt)
 add_subdirectory(json)
 add_subdirectory(pthread_pool)
