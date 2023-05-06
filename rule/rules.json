@@ -4,19 +4,19 @@
     "conditions": {
       "0":{
         "co2min": 0,
-        "co2max": 500,
+        "co2max": 60000,
         "comin": 0,
-        "comax": 200,
+        "comax": 1000,
         "h2smin": 0,
-        "h2smax": 6000,
+        "h2smax": 200,
         "nh3min": 0,
-        "nh3max": 1500,
+        "nh3max": 500,
         "tempmin": 0,
-        "tempmax": 30,
-        "humimin": 0,
-        "humimax": 40,
+        "tempmax": 50,
+        "humimin": 20,
+        "humimax": 90,
         "luxmin": 0,
-        "luxmax": 100
+        "luxmax": 65535
       }
     },
     "targets": {
@@ -24,7 +24,7 @@
     },
     "actions": {
       "0": {
-        "light": "close",
+        "light": "open",
         "fun": "close"
       }
     }

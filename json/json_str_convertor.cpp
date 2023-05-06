@@ -202,12 +202,13 @@ int JsonStrConvertor::parseNodeUplink() {
         }
 
         // 转换UTC时间，将localtime加入到json对象中
-        char localTimeStr[20];
+        char localTimeStr[20] = {};
         SPDLOG_LOGGER_DEBUG(logger, cJSON_GetObjectItem(json, "datetime")->valuestring);
         strptime(cJSON_GetObjectItem(json, "datetime")->valuestring, "%Y-%m-%dT%H:%M:%SZ", &time);
         timestamp += mktime(&time);
         if (!localtime_r(&timestamp, &time))
             perror("localtime convert failed");
+//            SPDLOG_LOGGER_ERROR(logger,"localtime convert failed");
         sprintf(localTimeStr, "%d-%02d-%02d %02d:%02d:%02d",
                 time.tm_year + 1900, time.tm_mon + 1, time.tm_mday, time.tm_hour, time.tm_min, time.tm_sec);
         addJsonFlag = cJSON_AddStringToObject(json, "localtime", localTimeStr);
